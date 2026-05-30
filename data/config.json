@@ -1,0 +1,23 @@
+{
+    "usernames": {
+        "custom": false,
+        "amount": 100,
+        "length": 3,
+        "length_mode": "upto",
+        "min_length": 2,
+        "max_length": 5,
+        "charset": "custom"
+    },
+    "retry": {
+        "enabled": true,
+        "max_attempts": 5
+    },
+    "threads": 14,
+    "timeout": 30,
+    "webhook": "",
+    "dry_run": false,
+    "double_verify": false,
+    "adaptive_rate": true,
+    "skip_duplicates": true,
+    "min_delay_ms": 100
+}

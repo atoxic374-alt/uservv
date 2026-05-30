@@ -1,0 +1,15 @@
+{
+    "custom": false,
+    "exhaustive": false,
+    "amount": 100,
+    "min_length": 2,
+    "max_length": 3,
+    "prefix": "1s",
+    "charset": "discord",
+    "custom_chars": "",
+    "threads": 10,
+    "timeout": 30,
+    "adaptive_rate": true,
+    "skip_duplicates": true,
+    "min_delay_ms": 0
+}

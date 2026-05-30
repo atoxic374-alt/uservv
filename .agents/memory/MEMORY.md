@@ -1,0 +1,3 @@
+- [SQLite on Replit](sqlite-replit.md) — use `modernc.org/sqlite` (pure Go), not `mattn/go-sqlite3` (requires CGO which breaks on Replit)
+- [Go WebSocket pattern](go-ws-pattern.md) — gorilla/websocket hub with broadcast channel; globals.EventCh feeds into WSHub.Broadcast via a goroutine in server.go
+- [Vanity URL check API](vanity-api.md) — Discord invite API used for vanity checking; 404=available, 200=taken, dedup via UNIQUE index on vanity_results.code

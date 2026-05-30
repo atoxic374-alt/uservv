@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discord Checker</title>
+<style>
+:root {
+  --bg:#0b0a0b; --bg2:#111010; --bg3:#1c1a1a; --bg4:#242020;
+  --border:rgba(255,255,255,0.07); --border-gold:rgba(248,220,161,0.18);
+  --gold:#f8dca1; --gold2:#e8cc8a; --gold3:#f3ead5; --gold-dim:#534e41;
+  --brand:#e1dbd1; --muted:#c9c6bf; --dim:#6b6560;
+  --green:#4ade80; --red:#f87171; --blue:#73abff; --teal:#78deb0; --purple:#c084fc;
+  --green-bg:rgba(74,222,128,0.1); --red-bg:rgba(248,113,113,0.1);
+  --blue-bg:rgba(115,171,255,0.12); --teal-bg:rgba(120,222,175,0.12);
+  --gold-bg:rgba(248,220,161,0.08); --purple-bg:rgba(192,132,252,0.1);
+  --sidebar-w:220px; --r:12px; --t:.2s ease;
+  --shadow:0 8px 32px rgba(0,0,0,.6); --shadow-gold:0 0 24px rgba(248,220,161,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--brand);font-family:'Segoe UI',system-ui,sans-serif;font-size:13.5px;display:flex;height:100vh;overflow:hidden;position:relative;}
+
+/* ─── Aurora Background ─── */
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.aurora-blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.5;}
+.aurora-blob:nth-child(1){width:500px;height:500px;background:radial-gradient(circle,rgba(248,220,161,0.07),transparent 70%);animation:drift1 22s ease-in-out infinite;}
+.aurora-blob:nth-child(2){width:350px;height:350px;background:radial-gradient(circle,rgba(115,171,255,0.05),transparent 70%);animation:drift2 28s ease-in-out infinite;}
+.aurora-blob:nth-child(3){width:280px;height:280px;background:radial-gradient(circle,rgba(120,222,175,0.05),transparent 70%);animation:drift3 18s ease-in-out infinite;}
+.aurora-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.013) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.013) 1px,transparent 1px);background-size:60px 60px;}
+@keyframes drift1{0%,100%{transform:translate(-5%,5%) scale(1)}33%{transform:translate(55%,-15%) scale(1.1)}66%{transform:translate(35%,60%) scale(.9)}}
+@keyframes drift2{0%,100%{transform:translate(75%,25%) scale(1)}40%{transform:translate(5%,65%) scale(1.15)}70%{transform:translate(80%,5%) scale(.85)}}
+@keyframes drift3{0%,100%{transform:translate(40%,80%) scale(1)}30%{transform:translate(10%,20%) scale(1.2)}70%{transform:translate(70%,40%) scale(.9)}}
+
+/* ─── Sidebar ─── */
+.sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:rgba(11,10,11,0.95);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:20;transition:transform .28s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(20px);}
+.logo-wrap{padding:20px 16px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:11px;}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 16px rgba(248,220,161,0.25);}
+.logo-text{font-size:13px;font-weight:800;color:var(--gold3);letter-spacing:.3px;}
+.logo-sub{font-size:10px;color:var(--dim);margin-top:1px;letter-spacing:.5px;}
+.nav-label{padding:14px 13px 5px;font-size:9.5px;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:1.2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 11px;margin:1px 8px;border-radius:9px;cursor:pointer;color:var(--dim);font-size:13px;font-weight:500;transition:all var(--t);position:relative;}
+.nav-item:hover{background:rgba(255,255,255,0.04);color:var(--muted);}
+.nav-item.active{background:linear-gradient(135deg,rgba(248,220,161,0.12),rgba(248,220,161,0.06));color:var(--gold);border:1px solid var(--border-gold);}
+.nav-item.active .nav-icon svg{stroke:var(--gold);}
+.nav-icon{width:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:800;}
+.nav-badge.gold{background:rgba(248,220,161,0.2);color:var(--gold);}
+.nav-badge.green{background:var(--green-bg);color:var(--green);}
+.nav-badge.teal{background:var(--teal-bg);color:var(--teal);}
+.nav-running{width:6px;height:6px;border-radius:50%;margin-left:auto;flex-shrink:0;}
+.nav-running.active{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 1.5s ease infinite;}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.sidebar-foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:9px;}
+.cdot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;transition:all .4s;box-shadow:0 0 6px var(--red);}
+.cdot.on{background:var(--green);box-shadow:0 0 8px var(--green);}
+.clabel{font-size:11px;color:var(--dim);}
+
+/* ─── Main ─── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;z-index:1;}
+.topbar{background:rgba(11,10,11,0.8);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 22px;height:56px;display:flex;align-items:center;gap:13px;flex-shrink:0;}
+.ham{display:none;background:none;border:none;color:var(--dim);cursor:pointer;padding:7px;border-radius:8px;}
+.ham:hover{color:var(--brand);background:rgba(255,255,255,0.05);}
+.topbar-title{font-size:16px;font-weight:800;color:var(--brand);}
+.topbar-sub{font-size:11px;color:var(--dim);margin-top:2px;}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.content{flex:1;overflow-y:auto;padding:22px;}
+.section{display:none;}
+.section.active{display:block;animation:fadeUp .35s cubic-bezier(.4,0,.2,1);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─── Buttons ─── */
+.btn{padding:8px 18px;border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:all var(--t);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;position:relative;overflow:hidden;}
+.btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0);transition:background .15s;}
+.btn:hover::after{background:rgba(255,255,255,0.06);}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0b0a0b;box-shadow:0 4px 18px rgba(248,220,161,0.25);}
+.btn-gold:hover{box-shadow:0 6px 24px rgba(248,220,161,0.35);}
+.btn-green{background:linear-gradient(135deg,var(--green),#22c55e);color:#0b0a0b;box-shadow:0 4px 18px rgba(74,222,128,0.2);}
+.btn-teal{background:linear-gradient(135deg,var(--teal),#34d399);color:#0b0a0b;box-shadow:0 4px 18px rgba(120,222,175,0.2);}
+.btn-red{background:linear-gradient(135deg,var(--red),#ef4444);color:#fff;box-shadow:0 4px 18px rgba(248,113,113,0.2);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{background:rgba(255,255,255,0.04);color:var(--brand);border-color:rgba(255,255,255,0.15);}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;}
+.btn-xs{padding:3px 9px;font-size:11px;border-radius:6px;}
+
+/* ─── Cards ─── */
+.card{background:rgba(17,16,16,0.8);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:14px;backdrop-filter:blur(10px);transition:border-color var(--t),box-shadow var(--t);}
+.card:hover{border-color:rgba(255,255,255,0.1);}
+.card.gold-glow:hover{border-color:var(--border-gold);box-shadow:var(--shadow-gold);}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.card-title{font-size:13px;font-weight:800;color:var(--brand);display:flex;align-items:center;gap:9px;text-transform:uppercase;letter-spacing:.5px;}
+.card-title svg{stroke:var(--gold);}
+.section-title{font-size:11px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+
+/* ─── Stats Grid ─── */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.stat{border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden;transition:transform var(--t),box-shadow var(--t);}
+.stat:hover{transform:translateY(-2px);}
+.stat::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity var(--t);}
+.stat.g{background:linear-gradient(135deg,rgba(74,222,128,0.08),rgba(74,222,128,0.04));border:1px solid rgba(74,222,128,0.15);}
+.stat.g:hover{box-shadow:0 8px 24px rgba(74,222,128,0.1);}
+.stat.r{background:linear-gradient(135deg,rgba(248,113,113,0.08),rgba(248,113,113,0.04));border:1px solid rgba(248,113,113,0.15);}
+.stat.r:hover{box-shadow:0 8px 24px rgba(248,113,113,0.1);}
+.stat.b{background:linear-gradient(135deg,rgba(115,171,255,0.08),rgba(115,171,255,0.04));border:1px solid rgba(115,171,255,0.15);}
+.stat.b:hover{box-shadow:0 8px 24px rgba(115,171,255,0.1);}
+.stat.teal{background:linear-gradient(135deg,rgba(120,222,175,0.08),rgba(120,222,175,0.04));border:1px solid rgba(120,222,175,0.15);}
+.stat.teal:hover{box-shadow:0 8px 24px rgba(120,222,175,0.1);}
+.stat.gold{background:linear-gradient(135deg,rgba(248,220,161,0.08),rgba(248,220,161,0.04));border:1px solid var(--border-gold);}
+.stat.gold:hover{box-shadow:0 8px 24px rgba(248,220,161,0.1);}
+.stat-icon{position:absolute;top:14px;right:14px;opacity:.25;}
+.stat-lbl{font-size:10px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.stat-val{font-size:28px;font-weight:900;line-height:1;transition:all .3s;}
+.stat-sub{font-size:11px;color:var(--dim);margin-top:5px;}
+.stat.g .stat-val{color:var(--green);}
+.stat.r .stat-val{color:var(--red);}
+.stat.b .stat-val{color:var(--blue);}
+.stat.teal .stat-val{color:var(--teal);}
+.stat.gold .stat-val{color:var(--gold);}
+
+/* ─── Progress ─── */
+.prog-wrap{background:rgba(255,255,255,0.05);border-radius:99px;height:5px;overflow:hidden;margin:10px 0;}
+.prog-bar{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;}
+.prog-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);animation:shimmer 2s ease-in-out infinite;}
+.prog-bar.u{background:linear-gradient(90deg,var(--gold),var(--gold2));}
+.prog-bar.v{background:linear-gradient(90deg,var(--teal),#22d3ee);}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
+
+/* ─── Status bar ─── */
+.sbar{display:flex;align-items:center;gap:0;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;overflow:hidden;flex-wrap:wrap;}
+.sbar-cell{padding:10px 16px;flex:1;min-width:80px;}
+.sbar-cell+.sbar-cell{border-left:1px solid var(--border);}
+.sbar-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:700;}
+.sbar-val{font-size:14px;font-weight:800;color:var(--brand);}
+
+/* ─── Log ─── */
+.log{background:rgba(5,5,5,0.8);border:1px solid var(--border);border-radius:9px;padding:10px 12px;height:220px;overflow-y:auto;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:11.5px;line-height:1.7;}
+.log-line{display:flex;gap:8px;align-items:baseline;}
+.log-ts{color:var(--dim);flex-shrink:0;font-size:10px;}
+.log-badge{flex-shrink:0;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.5px;}
+.log-badge.success{background:var(--green-bg);color:var(--green);}
+.log-badge.error{background:var(--red-bg);color:var(--red);}
+.log-badge.warn{background:rgba(251,191,36,0.12);color:#fbbf24;}
+.log-badge.info{background:var(--blue-bg);color:var(--blue);}
+.log-msg{color:var(--muted);}
+
+/* ─── Table ─── */
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;}
+th{background:rgba(255,255,255,0.03);color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;padding:10px 14px;text-align:left;font-weight:800;white-space:nowrap;border-bottom:1px solid var(--border);}
+td{padding:10px 14px;border-top:1px solid rgba(255,255,255,0.04);font-size:13px;vertical-align:middle;color:var(--muted);}
+tr:hover td{background:rgba(255,255,255,0.02);}
+.empty-row td{text-align:center;color:var(--dim);padding:48px;font-size:13px;}
+
+/* ─── Badges ─── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;}
+.bg-g{background:var(--green-bg);color:var(--green);}
+.bg-r{background:var(--red-bg);color:var(--red);}
+.bg-y{background:rgba(251,191,36,0.1);color:#fbbf24;}
+.bg-b{background:var(--blue-bg);color:var(--blue);}
+.bg-tl{background:var(--teal-bg);color:var(--teal);}
+.bg-gold{background:var(--gold-bg);color:var(--gold);}
+.bg-p{background:var(--purple-bg);color:var(--purple);}
+.bg-gr{background:rgba(255,255,255,0.06);color:var(--dim);}
+
+/* ─── Forms ─── */
+.fg{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+label{font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.6px;}
+input,select,textarea{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:9px;color:var(--brand);padding:9px 13px;font-size:13px;outline:none;transition:all var(--t);font-family:inherit;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:rgba(248,220,161,0.4);background:rgba(248,220,161,0.04);box-shadow:0 0 0 3px rgba(248,220,161,0.06);}
+select option{background:#1c1a1a;color:var(--brand);}
+textarea{resize:vertical;min-height:80px;}
+input[type=range]{padding:3px 0;cursor:pointer;accent-color:var(--gold);}
+input[type=checkbox]{width:auto;cursor:pointer;accent-color:var(--gold);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:14px;}
+
+/* ─── Toggles ─── */
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.tog-row:last-child{border-bottom:none;padding-bottom:0;}
+.tog-info .tog-lbl{font-size:13px;font-weight:600;color:var(--brand);}
+.tog-info .tog-desc{font-size:11px;color:var(--dim);margin-top:3px;}
+.tog{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
+.tog input{opacity:0;width:0;height:0;}
+.tog-sl{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,0.1);border-radius:99px;transition:.2s;}
+.tog-sl:before{position:absolute;content:'';height:16px;width:16px;left:3px;bottom:3px;background:var(--dim);border-radius:50%;transition:.2s;}
+.tog input:checked+.tog-sl{background:var(--gold);}
+.tog input:checked+.tog-sl.teal{background:var(--teal);}
+.tog input:checked+.tog-sl:before{transform:translateX(18px);background:#0b0a0b;}
+
+/* ─── Checker Config ─── */
+.mode-strip{display:flex;gap:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);padding:5px;border-radius:10px;margin-bottom:16px;}
+.mode-btn{flex:1;padding:8px;border-radius:7px;cursor:pointer;text-align:center;font-size:12px;font-weight:700;color:var(--dim);transition:all var(--t);border:none;background:none;}
+.mode-btn.active{background:linear-gradient(135deg,rgba(248,220,161,0.15),rgba(248,220,161,0.07));color:var(--gold);border:1px solid var(--border-gold);}
+.charset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px;}
+.cs-btn{padding:9px 6px;border-radius:9px;cursor:pointer;text-align:center;font-size:12px;font-weight:700;color:var(--dim);border:1px solid var(--border);background:rgba(255,255,255,0.02);transition:all var(--t);}
+.cs-btn:hover{border-color:rgba(255,255,255,0.12);color:var(--muted);}
+.cs-btn.active{background:rgba(248,220,161,0.1);border-color:var(--border-gold);color:var(--gold);}
+.cs-label{font-size:10px;color:var(--dim);margin-top:3px;display:block;}
+.len-mode-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;}
+.lm-btn{padding:8px;border-radius:9px;cursor:pointer;text-align:center;font-size:11.5px;font-weight:700;color:var(--dim);border:1px solid var(--border);background:rgba(255,255,255,0.02);transition:all var(--t);}
+.lm-btn:hover{border-color:rgba(255,255,255,0.1);color:var(--muted);}
+.lm-btn.active{background:rgba(248,220,161,0.1);border-color:var(--border-gold);color:var(--gold);}
+.input-num{width:80px;text-align:center;font-weight:800;font-size:15px;}
+
+/* ─── Range Slider ─── */
+.range-row{display:flex;align-items:center;gap:10px;}
+.range-row input[type=range]{flex:1;}
+.range-val{font-size:13px;font-weight:800;color:var(--gold);width:38px;text-align:center;flex-shrink:0;}
+
+/* ─── Info boxes ─── */
+.info-box{padding:11px 14px;border-radius:9px;font-size:12px;line-height:1.6;}
+.info-box.gold{background:rgba(248,220,161,0.07);border:1px solid rgba(248,220,161,0.15);color:var(--gold3);}
+.info-box.blue{background:var(--blue-bg);border:1px solid rgba(115,171,255,0.2);color:var(--blue);}
+.info-box.teal{background:var(--teal-bg);border:1px solid rgba(120,222,175,0.2);color:var(--teal);}
+.info-box.red{background:var(--red-bg);border:1px solid rgba(248,113,113,0.2);color:var(--red);}
+
+/* ─── Divider ─── */
+.div-gold{height:1px;background:linear-gradient(90deg,transparent,var(--border-gold),transparent);margin:16px 0;}
+
+/* ─── Two col ─── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+.filters input,.filters select{width:auto;flex:1;min-width:110px;}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.dot-g{background:var(--green);}
+.dot-r{background:var(--red);}
+
+/* ─── Toast ─── */
+@keyframes toastIn{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastOut{to{transform:translateX(30px);opacity:0}}
+.toast-wrap{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:9999;}
+.toast{background:rgba(28,26,26,0.95);border:1px solid var(--border);border-radius:11px;padding:11px 15px;min-width:200px;max-width:320px;display:flex;align-items:flex-start;gap:10px;box-shadow:0 12px 40px rgba(0,0,0,.6);animation:toastIn .22s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(16px);}
+.toast.out{animation:toastOut .2s ease forwards;}
+.toast-icon{flex-shrink:0;margin-top:1px;}
+.toast-body{flex:1;}
+.toast-title{font-size:12px;font-weight:800;color:var(--brand);margin-bottom:2px;}
+.toast-msg{font-size:12px;color:var(--muted);line-height:1.4;}
+
+/* ─── Overlay ─── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:19;backdrop-filter:blur(4px);}
+
+/* ─── IC icons ─── */
+.ic{width:15px;height:15px;flex-shrink:0;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:inline-block;}
+.ic-sm{width:13px;height:13px;}
+.ic-lg{width:19px;height:19px;}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:99px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15);}
+
+/* ─── Responsive ─── */
+@media(max-width:920px){.stats-grid{grid-template-columns:repeat(2,1fr);}.two-col{grid-template-columns:1fr;}.form-row{grid-template-columns:1fr;}.ham{display:flex!important;}.sidebar{position:fixed;top:0;left:0;height:100%;transform:translateX(-100%);}.sidebar.open{transform:translateX(0);}.overlay.show{display:block;}.charset-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.stats-grid{grid-template-columns:1fr 1fr;}.content{padding:13px;}.topbar{padding:0 14px;}}
+</style>
+</head>
+<body>
+
+<div class="aurora">
+  <div class="aurora-blob"></div>
+  <div class="aurora-blob"></div>
+  <div class="aurora-blob"></div>
+  <div class="aurora-grid"></div>
+</div>
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="logo-wrap">
+    <div class="logo-icon">
+      <svg class="ic ic-lg" viewBox="0 0 24 24" style="stroke:#0b0a0b;stroke-width:2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">Discord Checker</div>
+      <div class="logo-sub">Availability Tools</div>
+    </div>
+  </div>
+
+  <div class="nav-label">Main</div>
+  <div class="nav-item active" onclick="nav('dashboard')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+    Dashboard
+  </div>
+
+  <div class="nav-label">Username Checker</div>
+  <div class="nav-item" onclick="nav('checker')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg></span>
+    Checker
+    <span class="nav-running" id="nav-running"></span>
+  </div>
+  <div class="nav-item" onclick="nav('results')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+    Results
+    <span class="nav-badge green" id="nav-valid-count">0</span>
+  </div>
+  <div class="nav-item" onclick="nav('sessions')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+    Sessions
+  </div>
+
+  <div class="nav-label">Vanity URLs</div>
+  <div class="nav-item" onclick="nav('vanity')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    Vanity Checker
+    <span class="nav-running" id="nav-vanity-running"></span>
+  </div>
+  <div class="nav-item" onclick="nav('vanity-results')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+    Vanity Results
+    <span class="nav-badge teal" id="nav-vanity-avail">0</span>
+  </div>
+  <div class="nav-item" onclick="nav('vanity-sessions')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
+    Vanity Sessions
+  </div>
+
+  <div class="nav-label">Tools</div>
+  <div class="nav-item" onclick="nav('proxies')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+    Proxies
+    <span class="nav-badge green" id="nav-proxy-count">0</span>
+  </div>
+  <div class="nav-item" onclick="nav('settings')">
+    <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+    Settings
+  </div>
+
+  <div class="sidebar-foot">
+    <span class="cdot" id="cdot"></span>
+    <span class="clabel" id="clabel">Connecting...</span>
+  </div>
+</aside>
+
+<!-- ══════════════════ MAIN ══════════════════ -->
+<div class="main">
+  <div class="topbar">
+    <button class="ham" onclick="openSidebar()">
+      <svg class="ic ic-lg" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-sub" id="topbar-sub">Live overview</div>
+    </div>
+    <div class="topbar-actions" id="topbar-actions"></div>
+  </div>
+
+  <div class="content">
+
+<!-- ════════ DASHBOARD ════════ -->
+<div class="section active" id="sec-dashboard">
+  <div class="stats-grid">
+    <div class="stat g">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--green);opacity:.4"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="stat-lbl">Valid Usernames</div>
+      <div class="stat-val" id="d-valid">0</div>
+      <div class="stat-sub">Available accounts</div>
+    </div>
+    <div class="stat r">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--red);opacity:.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+      <div class="stat-lbl">Taken / Error</div>
+      <div class="stat-val" id="d-invalid">0</div>
+      <div class="stat-sub">Unavailable</div>
+    </div>
+    <div class="stat teal">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--teal);opacity:.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+      <div class="stat-lbl">Vanity Available</div>
+      <div class="stat-val" id="d-vanity-avail">0</div>
+      <div class="stat-sub">discord.gg codes</div>
+    </div>
+    <div class="stat gold">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--gold);opacity:.4"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="stat-lbl">Check Rate</div>
+      <div class="stat-val" id="d-rate">0</div>
+      <div class="stat-sub">Per second</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Username Progress</div>
+        <span id="u-prog-label" style="font-size:11px;color:var(--dim)">Idle</span>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar u" id="u-prog-bar" style="width:0%"></div></div>
+      <div class="sbar" style="margin-top:12px">
+        <div class="sbar-cell"><div class="sbar-lbl">Total</div><div class="sbar-val" id="d-total">0</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Elapsed</div><div class="sbar-val" id="d-elapsed">0s</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Proxies</div><div class="sbar-val" id="d-proxies">0</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Status</div><div class="sbar-val" id="d-status">Idle</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Vanity Progress</div>
+        <span id="v-prog-label" style="font-size:11px;color:var(--dim)">Idle</span>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar v" id="v-prog-bar" style="width:0%"></div></div>
+      <div class="sbar" style="margin-top:12px">
+        <div class="sbar-cell"><div class="sbar-lbl">Total</div><div class="sbar-val" id="dv-total">0</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Available</div><div class="sbar-val" id="dv-avail" style="color:var(--teal)">0</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Taken</div><div class="sbar-val" id="dv-taken" style="color:var(--red)">0</div></div>
+        <div class="sbar-cell"><div class="sbar-lbl">Status</div><div class="sbar-val" id="dv-status">Idle</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Live Activity</div>
+        <button class="btn btn-ghost btn-sm" onclick="clearLog()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Clear</button>
+      </div>
+      <div class="log" id="log-main"></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><div class="card-title"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Database Stats</div></div>
+      <div style="display:grid;gap:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Username Results</span><strong style="color:var(--brand)" id="dbs-results">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Valid Usernames</span><strong style="color:var(--green)" id="dbs-valid">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Vanity Checked</span><strong style="color:var(--brand)" id="dbs-vanity">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Vanity Available</span><strong style="color:var(--teal)" id="dbs-vanity-avail">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Sessions</span><strong style="color:var(--brand)" id="dbs-sessions">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:var(--dim);font-size:12px">Total Proxies</span><strong style="color:var(--brand)" id="dbs-proxies">—</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0"><span style="color:var(--dim);font-size:12px">Healthy Proxies</span><strong style="color:var(--green)" id="dbs-healthy">—</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ USERNAME CHECKER ════════ -->
+<div class="section" id="sec-checker">
+  <div class="two-col" style="align-items:start">
+    <div>
+      <!-- Mode -->
+      <div class="card gold-glow">
+        <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Configuration</div>
+
+        <div class="section-title">Source Mode</div>
+        <div class="mode-strip">
+          <button class="mode-btn active" id="src-generate" onclick="setSrcMode('generate')">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/></svg> Generate
+          </button>
+          <button class="mode-btn" id="src-custom" onclick="setSrcMode('custom')">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Custom File
+          </button>
+        </div>
+
+        <!-- Generate Options -->
+        <div id="gen-panel">
+          <div class="section-title">Character Set</div>
+          <div class="charset-grid">
+            <div class="cs-btn active" id="cs-discord" onclick="setCharset('discord')">
+              <svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+              <span class="cs-label">a-z 0-9 _ .</span>
+            </div>
+            <div class="cs-btn" id="cs-alpha" onclick="setCharset('alpha')">
+              <svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+              <span class="cs-label">a–z</span>
+            </div>
+            <div class="cs-btn" id="cs-num" onclick="setCharset('num')">
+              <svg class="ic ic-sm" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+              <span class="cs-label">0–9</span>
+            </div>
+            <div class="cs-btn" id="cs-alphanum" onclick="setCharset('alphanum')">
+              <svg class="ic ic-sm" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <span class="cs-label">a–z + 0–9</span>
+            </div>
+            <div class="cs-btn" id="cs-custom" onclick="setCharset('custom')">
+              <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span class="cs-label">Custom</span>
+            </div>
+          </div>
+          <div class="fg" id="custom-chars-row" style="display:none">
+            <label>Custom Characters</label>
+            <input type="text" id="cfg-custom-chars" placeholder="e.g. abcdef123" maxlength="62">
+          </div>
+
+          <div class="div-gold"></div>
+
+          <div class="section-title">Length Mode</div>
+          <div class="len-mode-strip">
+            <div class="lm-btn active" id="lm-exact" onclick="setLenMode('exact')">Exact Length</div>
+            <div class="lm-btn" id="lm-upto" onclick="setLenMode('upto')">Up to N chars</div>
+            <div class="lm-btn" id="lm-range" onclick="setLenMode('range')">Range</div>
+          </div>
+
+          <div id="len-exact-panel">
+            <div class="fg">
+              <label>Length</label>
+              <div class="range-row">
+                <input type="range" id="len-exact-slider" min="2" max="32" value="3" oninput="$('len-exact-val').textContent=this.value;updatePreview()">
+                <span class="range-val" id="len-exact-val">3</span>
+              </div>
+            </div>
+          </div>
+          <div id="len-upto-panel" style="display:none">
+            <div class="fg">
+              <label>Maximum Length (generates 2 up to N)</label>
+              <div class="range-row">
+                <input type="range" id="len-upto-slider" min="2" max="32" value="5" oninput="$('len-upto-val').textContent=this.value;updatePreview()">
+                <span class="range-val" id="len-upto-val">5</span>
+              </div>
+            </div>
+          </div>
+          <div id="len-range-panel" style="display:none">
+            <div class="fg">
+              <label>Min Length</label>
+              <div class="range-row">
+                <input type="range" id="len-min" min="2" max="32" value="2" oninput="clampRange();updatePreview()">
+                <span class="range-val" id="len-min-val">2</span>
+              </div>
+            </div>
+            <div class="fg">
+              <label>Max Length</label>
+              <div class="range-row">
+                <input type="range" id="len-max" min="2" max="32" value="4" oninput="clampRange();updatePreview()">
+                <span class="range-val" id="len-max-val">4</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="div-gold"></div>
+
+          <div class="fg">
+            <label>Amount to Generate</label>
+            <div class="range-row">
+              <input type="range" id="cfg-amount-slider" min="100" max="100000" step="100" value="1000" oninput="$('cfg-amount-val').textContent=fmtNum(+this.value);updatePreview()">
+              <span class="range-val" style="width:60px;font-size:12px" id="cfg-amount-val">1,000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom File Panel -->
+        <div id="custom-panel" style="display:none">
+          <div class="info-box gold">
+            Reads usernames from <code style="background:rgba(248,220,161,0.12);padding:1px 6px;border-radius:4px;font-family:monospace">data/usernames.txt</code><br>One username per line.
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="div-gold"></div>
+        <div id="gen-preview" style="font-size:12px;color:var(--dim);line-height:1.7;min-height:36px"></div>
+      </div>
+
+      <!-- Options -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Options</div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Dry Run</div><div class="tog-desc">Simulate without real requests</div></div>
+          <label class="tog"><input type="checkbox" id="ck-dryrun" onchange="quickSave('dry_run',this.checked)"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Double Verify</div><div class="tog-desc">Re-confirm available usernames</div></div>
+          <label class="tog"><input type="checkbox" id="ck-double" onchange="quickSave('double_verify',this.checked)"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Adaptive Rate Limiting</div><div class="tog-desc">Auto slow down on 429 errors</div></div>
+          <label class="tog"><input type="checkbox" id="ck-adaptive" onchange="quickSave('adaptive_rate',this.checked)"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row" style="border:0;padding-bottom:0">
+          <div class="tog-info">
+            <div class="tog-lbl" style="display:flex;align-items:center;gap:6px">
+              <svg class="ic ic-sm" viewBox="0 0 24 24" style="stroke:var(--green)"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+              Skip Already-Checked
+            </div>
+            <div class="tog-desc">Always skip usernames from previous sessions</div>
+          </div>
+          <span class="badge bg-g" style="font-size:10px">Always On</span>
+        </div>
+        <div style="margin-top:14px">
+          <div class="fg" style="margin-bottom:10px">
+            <label>Threads</label>
+            <div class="range-row">
+              <input type="range" id="ck-threads" min="1" max="200" value="10" oninput="$('ck-threads-val').textContent=this.value">
+              <span class="range-val" id="ck-threads-val">10</span>
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Min Delay (ms)</label>
+            <div class="range-row">
+              <input type="range" id="ck-delay" min="0" max="5000" step="50" value="0" oninput="$('ck-delay-val').textContent=this.value+'ms'">
+              <span class="range-val" id="ck-delay-val" style="width:50px;font-size:11px">0ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- Control -->
+      <div class="card gold-glow">
+        <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Control Panel</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn btn-green" style="flex:1;justify-content:center;font-size:14px;padding:11px" id="ck-start" onclick="startChecker()">
+            <svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Checker
+          </button>
+          <button class="btn btn-red" style="flex:1;justify-content:center;font-size:14px;padding:11px;display:none" id="ck-stop" onclick="stopChecker()">
+            <svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Stop
+          </button>
+        </div>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;border-color:rgba(248,113,113,0.3);color:var(--red)" onclick="startCheckerForce()" id="ck-force">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Force Re-check All (incl. duplicates)
+        </button>
+
+        <div class="div-gold"></div>
+
+        <div style="display:grid;gap:7px">
+          <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+            <span style="color:var(--dim);font-size:12px">Status</span>
+            <strong style="color:var(--brand)" id="ck-status">Idle</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+            <span style="color:var(--dim);font-size:12px">Valid Found</span>
+            <strong style="color:var(--green)" id="ck-valid">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+            <span style="color:var(--dim);font-size:12px">Checked</span>
+            <strong style="color:var(--brand)" id="ck-checked">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+            <span style="color:var(--dim);font-size:12px">Rate</span>
+            <strong style="color:var(--gold)" id="ck-rate">0/s</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+            <span style="color:var(--dim);font-size:12px">Elapsed</span>
+            <strong style="color:var(--brand)" id="ck-elapsed">0s</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Live Log</div>
+          <button class="btn btn-ghost btn-sm" onclick="clearLog()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Clear</button>
+        </div>
+        <div class="log" id="log-checker" style="height:260px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ USERNAME RESULTS ════════ -->
+<div class="section" id="sec-results">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Username Results</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="loadResults()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+        <button class="btn btn-red btn-sm" onclick="clearResults()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Clear</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input type="text" id="res-search" placeholder="Search username..." oninput="debounce('results')" style="flex:2;min-width:140px">
+      <select id="res-status" onchange="loadResults()" style="width:140px">
+        <option value="">All Statuses</option>
+        <option value="valid">Valid</option>
+        <option value="taken">Taken</option>
+        <option value="error">Error</option>
+      </select>
+      <select id="res-limit" onchange="loadResults()" style="width:100px">
+        <option value="25">25/page</option>
+        <option value="50" selected>50/page</option>
+        <option value="100">100/page</option>
+      </select>
+    </div>
+    <div id="res-count" style="font-size:11px;color:var(--dim);margin-bottom:10px"></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Username</th><th>Status</th><th>Latency</th><th>Tags</th><th>Checked At</th><th>Actions</th></tr></thead>
+        <tbody id="res-body"><tr class="empty-row"><td colspan="6">No results yet</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px" id="res-pag"></div>
+  </div>
+</div>
+
+<!-- ════════ USERNAME SESSIONS ════════ -->
+<div class="section" id="sec-sessions">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Username Session History</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadSessions()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Status</th><th>Mode</th><th>Total</th><th>Valid</th><th>Invalid</th><th>Rate%</th><th>Started</th><th>Duration</th></tr></thead>
+        <tbody id="sess-body"><tr class="empty-row"><td colspan="9">No sessions yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ VANITY CHECKER ════════ -->
+<div class="section" id="sec-vanity">
+  <div class="stats-grid">
+    <div class="stat teal">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--teal);opacity:.35"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+      <div class="stat-lbl">Available</div>
+      <div class="stat-val" id="vc-avail">0</div>
+      <div class="stat-sub">Free codes</div>
+    </div>
+    <div class="stat r">
+      <div class="stat-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke:var(--red);opacity:.35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <div class="stat-lbl">Taken</div>
+      <div class="stat-val" id="vc-taken">0</div>
+      <div class="stat-sub">Registered</div>
+    </div>
+    <div class="stat b">
+      <div class="stat-lbl">Remaining</div>
+      <div class="stat-val" id="vc-remaining">—</div>
+      <div class="stat-sub">Left to check</div>
+    </div>
+    <div class="stat gold">
+      <div class="stat-lbl">Rate</div>
+      <div class="stat-val" id="vc-rate">0</div>
+      <div class="stat-sub">Per second</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Vanity Progress</div>
+      <span id="vc-prog-label" style="font-size:11px;color:var(--dim)">Idle</span>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar v" id="vc-prog-bar" style="width:0%"></div></div>
+    <div class="sbar" style="margin-top:12px">
+      <div class="sbar-cell"><div class="sbar-lbl">Total</div><div class="sbar-val" id="vc-total">0</div></div>
+      <div class="sbar-cell"><div class="sbar-lbl">Elapsed</div><div class="sbar-val" id="vc-elapsed">0s</div></div>
+      <div class="sbar-cell"><div class="sbar-lbl">Available</div><div class="sbar-val" id="vc-avail2" style="color:var(--teal)">0</div></div>
+      <div class="sbar-cell"><div class="sbar-lbl">Status</div><div class="sbar-val" id="vc-status">Idle</div></div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card gold-glow">
+      <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Generator Config</div>
+
+      <div class="section-title">Mode</div>
+      <div class="mode-strip" style="margin-bottom:14px">
+        <button class="mode-btn active" id="vtab-random" onclick="setVMode('random')">Random</button>
+        <button class="mode-btn" id="vtab-exhaustive" onclick="setVMode('exhaustive')">Exhaustive</button>
+        <button class="mode-btn" id="vtab-custom" onclick="setVMode('custom')">Custom File</button>
+      </div>
+
+      <div id="vgen-panel">
+        <div class="section-title">Charset</div>
+        <div class="charset-grid" style="margin-bottom:14px">
+          <div class="cs-btn active" id="vcs-discord" onclick="setVCharset('discord')"><svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg><span class="cs-label">a–z + 0–9 + -</span></div>
+          <div class="cs-btn" id="vcs-alpha" onclick="setVCharset('alpha')"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="cs-label">a–z</span></div>
+          <div class="cs-btn" id="vcs-alphanum" onclick="setVCharset('alphanum')"><svg class="ic ic-sm" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><span class="cs-label">a–z + 0–9</span></div>
+          <div class="cs-btn" id="vcs-custom" onclick="setVCharset('custom')"><svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span class="cs-label">Custom</span></div>
+        </div>
+        <div id="vcs-custom-row" style="display:none" class="fg">
+          <label>Custom Characters</label>
+          <input type="text" id="vck-custom-chars" placeholder="abcdefghijklmnop">
+        </div>
+
+        <div class="form-row">
+          <div class="fg" style="margin:0">
+            <label>Min Length</label>
+            <div class="range-row">
+              <input type="range" id="vck-minlen" min="2" max="25" value="3" oninput="clampVRange()">
+              <span class="range-val" id="vck-minlen-val">3</span>
+            </div>
+          </div>
+          <div class="fg" style="margin:0">
+            <label>Max Length</label>
+            <div class="range-row">
+              <input type="range" id="vck-maxlen" min="2" max="25" value="4" oninput="clampVRange()">
+              <span class="range-val" id="vck-maxlen-val">4</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="vamount-row" class="fg">
+          <label>Amount (Random mode)</label>
+          <div class="range-row">
+            <input type="range" id="vck-amount" min="100" max="500000" step="100" value="5000" oninput="$('vck-amount-val').textContent=fmtNum(+this.value)">
+            <span class="range-val" style="width:60px;font-size:11px" id="vck-amount-val">5,000</span>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label>Prefix (optional)</label>
+          <input type="text" id="vck-prefix" placeholder="e.g. abc — leaves rest random" style="font-family:monospace">
+        </div>
+      </div>
+
+      <div id="vcustom-panel" style="display:none">
+        <div class="info-box gold">Reads codes from <code style="background:rgba(248,220,161,0.12);padding:1px 6px;border-radius:4px;font-family:monospace">data/vanity.txt</code> — one per line.</div>
+      </div>
+
+      <div class="div-gold"></div>
+      <div id="vcombo-estimate" style="font-size:12px;color:var(--dim);min-height:28px"></div>
+    </div>
+
+    <div>
+      <div class="card gold-glow">
+        <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Control</div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Skip Already-Checked</div><div class="tog-desc">Persistent across all sessions</div></div>
+          <label class="tog"><input type="checkbox" id="vck-skip" checked><span class="tog-sl teal"></span></label>
+        </div>
+        <div class="tog-row" style="border:0;margin-bottom:14px">
+          <div class="tog-info"><div class="tog-lbl">Adaptive Rate Limiting</div><div class="tog-desc">Auto-slow on 429</div></div>
+          <label class="tog"><input type="checkbox" id="vck-adaptive" checked><span class="tog-sl teal"></span></label>
+        </div>
+        <div class="fg">
+          <label>Threads</label>
+          <div class="range-row">
+            <input type="range" id="vck-threads" min="1" max="100" value="10" oninput="$('vck-threads-val').textContent=this.value">
+            <span class="range-val" id="vck-threads-val">10</span>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:14px">
+          <label>Min Delay (ms)</label>
+          <div class="range-row">
+            <input type="range" id="vck-delay" min="0" max="5000" step="50" value="0" oninput="$('vck-delay-val').textContent=this.value+'ms'">
+            <span class="range-val" id="vck-delay-val" style="width:50px;font-size:11px">0ms</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-teal" style="flex:1;justify-content:center;font-size:14px;padding:11px" id="v-start" onclick="startVanity()">
+            <svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start
+          </button>
+          <button class="btn btn-red" style="flex:1;justify-content:center;font-size:14px;padding:11px;display:none" id="v-stop" onclick="stopVanity()">
+            <svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Stop
+          </button>
+        </div>
+        <div class="info-box teal" style="margin-top:12px;font-size:11px">
+          discord.gg/{code} — 404 = available, 200 = taken<br>Codes are permanently stored — never re-checked.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Vanity Log</div>
+          <button class="btn btn-ghost btn-sm" onclick="clearVanityLog()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        </div>
+        <div class="log" id="log-vanity" style="height:260px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ VANITY RESULTS ════════ -->
+<div class="section" id="sec-vanity-results">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Vanity Results</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="loadVanityResults()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+        <button class="btn btn-red btn-sm" onclick="clearVanityResults()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Clear</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input type="text" id="vres-search" placeholder="Search code..." oninput="debounce('vanityResults')" style="flex:2;min-width:120px">
+      <select id="vres-status" onchange="loadVanityResults()" style="width:140px">
+        <option value="">All Statuses</option><option value="available">Available</option><option value="taken">Taken</option><option value="error">Error</option>
+      </select>
+      <select id="vres-limit" onchange="loadVanityResults()" style="width:100px">
+        <option value="25">25/page</option><option value="50" selected>50/page</option><option value="100">100/page</option>
+      </select>
+    </div>
+    <div id="vres-count" style="font-size:11px;color:var(--dim);margin-bottom:10px"></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Code</th><th>Link</th><th>Status</th><th>Guild</th><th>Latency</th><th>Tags</th><th>Checked At</th><th></th></tr></thead>
+        <tbody id="vres-body"><tr class="empty-row"><td colspan="8">No vanity results yet</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px" id="vres-pag"></div>
+  </div>
+</div>
+
+<!-- ════════ VANITY SESSIONS ════════ -->
+<div class="section" id="sec-vanity-sessions">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Vanity Session History</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadVanitySessions()"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Status</th><th>Total</th><th>Available</th><th>Taken</th><th>Avail%</th><th>Started</th><th>Duration</th></tr></thead>
+        <tbody id="vsess-body"><tr class="empty-row"><td colspan="8">No vanity sessions yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ PROXIES ════════ -->
+<div class="section" id="sec-proxies">
+  <div class="two-col" style="margin-bottom:14px">
+    <div class="card gold-glow">
+      <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Proxies</div>
+      <div class="fg"><label>Type</label>
+        <select id="proxy-type"><option value="auto">Auto Detect</option><option value="http">HTTP</option><option value="socks5">SOCKS5</option><option value="socks4">SOCKS4</option></select>
+      </div>
+      <div class="fg" style="position:relative">
+        <label>URLs (one per line) <span id="proxy-lcount" style="color:var(--gold);font-weight:700;font-size:10px;margin-left:6px">0</span></label>
+        <textarea id="proxy-input" placeholder="127.0.0.1:8080&#10;socks5://user:pass@host:1080" rows="6" oninput="countProxyLines()"></textarea>
+      </div>
+      <button class="btn btn-gold" style="width:100%;justify-content:center" onclick="addProxies()">
+        <svg class="ic ic-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Proxies
+      </button>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Actions</div>
+      <div style="display:grid;gap:8px;margin-bottom:16px">
+        <button class="btn btn-ghost" onclick="testAllProxies()" style="justify-content:center"><svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Test All Proxies</button>
+        <button class="btn btn-ghost" onclick="loadProxies()" style="justify-content:center"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+        <button class="btn btn-red" onclick="deleteAllProxies()" style="justify-content:center"><svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete All</button>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:10px;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">Pool Stats</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center">
+          <div><div style="font-size:20px;font-weight:900;color:var(--brand)" id="px-total">0</div><div style="font-size:10px;color:var(--dim);margin-top:3px">Total</div></div>
+          <div><div style="font-size:20px;font-weight:900;color:var(--green)" id="px-healthy">0</div><div style="font-size:10px;color:var(--dim);margin-top:3px">Healthy</div></div>
+          <div><div style="font-size:20px;font-weight:900;color:var(--red)" id="px-dead">0</div><div style="font-size:10px;color:var(--dim);margin-top:3px">Dead</div></div>
+          <div><div style="font-size:20px;font-weight:900;color:var(--gold)" id="px-lat">—</div><div style="font-size:10px;color:var(--dim);margin-top:3px">Avg ms</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-title"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Proxy Pool</div>
+      <select id="proxy-filter" onchange="loadProxies(0)" style="width:120px"><option value="">All</option><option value="healthy">Healthy</option><option value="dead">Dead</option></select>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>URL</th><th>Type</th><th>Latency</th><th>OK</th><th>Fail</th><th>Last Check</th><th>Actions</th></tr></thead>
+        <tbody id="proxy-body"><tr class="empty-row"><td colspan="8">No proxies added yet</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px" id="proxy-pag"></div>
+  </div>
+</div>
+
+<!-- ════════ SETTINGS ════════ -->
+<div class="section" id="sec-settings">
+  <div class="two-col">
+    <div>
+      <div class="card gold-glow">
+        <div class="card-title" style="margin-bottom:16px"><svg class="ic" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg> Username Source</div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Custom File Mode</div><div class="tog-desc">Use data/usernames.txt instead of generate</div></div>
+          <label class="tog"><input type="checkbox" id="cfg-custom" onchange="toggleCustomMode()"><span class="tog-sl"></span></label>
+        </div>
+        <div id="random-opts" style="margin-top:12px">
+          <div class="form-row">
+            <div class="fg" style="margin:0"><label>Amount</label><input type="number" id="cfg-amount" min="1" max="1000000" placeholder="1000"></div>
+            <div class="fg" style="margin:0"><label>Length</label><input type="number" id="cfg-length" min="1" max="32" placeholder="3"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px"><svg class="ic" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Performance</div>
+        <div class="form-row">
+          <div class="fg" style="margin:0"><label>Threads</label><input type="number" id="cfg-threads" min="1" max="500" placeholder="10"></div>
+          <div class="fg" style="margin:0"><label>Timeout (s)</label><input type="number" id="cfg-timeout" min="1" max="120" placeholder="30"></div>
+        </div>
+        <div class="fg"><label>Min Delay (ms)</label><input type="number" id="cfg-mindelay" min="0" max="60000" placeholder="0"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Safety</div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Dry Run</div><div class="tog-desc">No real requests — testing only</div></div>
+          <label class="tog"><input type="checkbox" id="cfg-dryrun"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Double Verify</div><div class="tog-desc">Re-confirm available usernames</div></div>
+          <label class="tog"><input type="checkbox" id="cfg-double"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-lbl">Adaptive Rate Limiting</div><div class="tog-desc">Auto slow on 429 errors</div></div>
+          <label class="tog"><input type="checkbox" id="cfg-adaptive"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row" style="border:0;padding-bottom:0">
+          <div class="tog-info"><div class="tog-lbl">Retry on Error</div><div class="tog-desc">Auto-retry failed requests</div></div>
+          <label class="tog"><input type="checkbox" id="cfg-retry"><span class="tog-sl"></span></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Notifications</div>
+        <div class="fg" style="margin-bottom:0"><label>Discord Webhook URL</label><input type="url" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/..."></div>
+      </div>
+      <button class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:2px" onclick="saveConfig()">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Configuration
+      </button>
+    </div>
+  </div>
+</div>
+
+  </div><!-- .content -->
+</div><!-- .main -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* ══ State ══════════════════════════════════════════════════════ */
+const S={ws:null,wsR:0,checkerRunning:false,vanityRunning:false,resOff:0,vresOff:0,proxyOff:0,vMode:'random',srcMode:'generate',charset:'discord',lenMode:'exact',vCharset:'discord'};
+const META={dashboard:{title:'Dashboard',sub:'Live overview'},checker:{title:'Username Checker',sub:'Configure and start checking'},results:{title:'Results',sub:'Checked usernames'},sessions:{title:'Sessions',sub:'Session history'},vanity:{title:'Vanity Checker',sub:'Check discord.gg availability'},'vanity-results':{title:'Vanity Results',sub:'Available and taken codes'},'vanity-sessions':{title:'Vanity Sessions',sub:'Vanity session history'},proxies:{title:'Proxies',sub:'Proxy pool management'},settings:{title:'Settings',sub:'Application configuration'}};
+
+const SVG={check:'<svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',x:'<svg class="ic ic-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',alert:'<svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',info:'<svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',copy:'<svg class="ic ic-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',edit:'<svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',test:'<svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',trash:'<svg class="ic ic-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',link:'<svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',star:'<svg class="ic ic-sm" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',lock:'<svg class="ic ic-sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'};
+
+/* ══ Helpers ════════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+function setText(id,v){const e=$(id);if(e)e.textContent=v;}
+function setVal(id,v,isCheck=false){const e=$(id);if(!e)return;if(isCheck)e.checked=!!v;else e.value=v;}
+function setStyle(id,p,v){const e=$(id);if(e)e.style[p]=v;}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtMs(ms){if(!ms||ms<1000)return(ms||0)+'ms';const s=Math.floor(ms/1000);if(s<60)return s+'s';return Math.floor(s/60)+'m '+(s%60)+'s';}
+function fmtNum(n){return n.toLocaleString();}
+const dT={};function debounce(k){clearTimeout(dT[k]);dT[k]=setTimeout(()=>{if(k==='results')loadResults();else if(k==='vanityResults')loadVanityResults();},300);}
+
+/* ══ Nav ════════════════════════════════════════════════════════ */
+function nav(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const sec=$('sec-'+id);if(sec)sec.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{if((n.getAttribute('onclick')||'').includes("'"+id+"'"))n.classList.add('active');});
+  const m=META[id]||{};setText('topbar-title',m.title||id);setText('topbar-sub',m.sub||'');
+  const ta=$('topbar-actions');
+  if(id==='checker'){ta.innerHTML=`<button class="btn btn-green btn-sm" id="tb-start" onclick="startChecker()">${SVG.check} Start</button><button class="btn btn-red btn-sm" id="tb-stop" onclick="stopChecker()" style="display:none">${SVG.x} Stop</button>`;updateCheckerUI(S.checkerRunning);}
+  else if(id==='vanity'){ta.innerHTML=`<button class="btn btn-teal btn-sm" id="tb-vstart" onclick="startVanity()">${SVG.check} Start</button><button class="btn btn-red btn-sm" id="tb-vstop" onclick="stopVanity()" style="display:none">${SVG.x} Stop</button>`;updateVanityUI(S.vanityRunning);}
+  else{ta.innerHTML='';}
+  if(id==='proxies')loadProxies();
+  if(id==='results')loadResults();
+  if(id==='sessions')loadSessions();
+  if(id==='settings')loadConfig();
+  if(id==='vanity-results')loadVanityResults();
+  if(id==='vanity-sessions')loadVanitySessions();
+  if(id==='vanity')loadVanityConfig();
+  if(id==='checker')loadConfig();
+  closeSidebar();
+}
+function openSidebar(){$('sidebar').classList.add('open');$('overlay').classList.add('show');}
+function closeSidebar(){$('sidebar').classList.remove('open');$('overlay').classList.remove('show');}
+
+/* ══ WebSocket ══════════════════════════════════════════════════ */
+function connectWS(){
+  const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
+  S.ws=ws;
+  ws.onopen=()=>{S.wsR=0;setConn(true);fetchStatus();};
+  ws.onmessage=e=>{try{handleEv(JSON.parse(e.data));}catch(_){}};
+  ws.onclose=()=>{setConn(false);setTimeout(connectWS,Math.min(1000*Math.pow(1.5,S.wsR++),10000));};
+  ws.onerror=()=>ws.close();
+}
+function setConn(v){$('cdot').className='cdot'+(v?' on':'');setText('clabel',v?'Connected':'Reconnecting...');}
+
+function handleEv(ev){
+  if(ev.type==='stats')updateUsernameStats(ev.data);
+  else if(ev.type==='vanity_stats')updateVanityStats(ev.data);
+  else if(ev.type==='log')addLog(ev.data);
+  else if(ev.type==='vanity_result')onVanityResult(ev.data);
+  else if(ev.type==='checker_stopped')onCheckerStopped(ev.data);
+  else if(ev.type==='vanity_stopped')onVanityStopped(ev.data);
+  else if(ev.type==='username_result')onUsernameResult(ev.data);
+  else if(ev.type==='proxy_update')onProxyUpdate(ev.data);
+  else if(ev.type==='proxy_fetch_done')onProxyFetchDone(ev.data);
+}
+
+/* ══ Stats ══════════════════════════════════════════════════════ */
+function updateUsernameStats(d){
+  S.checkerRunning=d.status==='running'||d.status==='stopping';
+  setText('d-valid',d.valid||0);setText('d-invalid',d.invalid||0);setText('d-total',d.total||0);
+  setText('d-elapsed',fmtMs(d.elapsed_ms||0));setText('d-rate',(d.rate||0).toFixed(1)+'/s');setText('d-status',d.status||'idle');
+  const pct=d.total>0?(((d.valid||0)+(d.invalid||0))/d.total*100).toFixed(1):0;
+  setStyle('u-prog-bar','width',pct+'%');setText('u-prog-label',pct+'% ('+ ((d.valid||0)+(d.invalid||0))+' / '+(d.total||0)+')');
+  setText('ck-status',d.status||'idle');setText('ck-valid',d.valid||0);setText('ck-checked',(d.valid||0)+(d.invalid||0));
+  setText('ck-rate',(d.rate||0).toFixed(1)+'/s');setText('ck-elapsed',fmtMs(d.elapsed_ms||0));setText('nav-valid-count',d.valid||0);
+  updateCheckerUI(S.checkerRunning);
+}
+function updateVanityStats(d){
+  S.vanityRunning=d.status==='running'||d.status==='stopping';
+  setText('vc-avail',d.available||0);setText('vc-avail2',d.available||0);setText('vc-taken',d.taken||0);
+  setText('vc-remaining',d.remaining>=0?d.remaining:'—');setText('vc-rate',(d.rate||0).toFixed(1)+'/s');
+  setText('vc-total',d.total||0);setText('vc-elapsed',fmtMs(d.elapsed_ms||0));setText('vc-status',d.status||'idle');
+  const vdone=(d.available||0)+(d.taken||0)+(d.errors||0);
+  const pct=d.total>0?(vdone/d.total*100).toFixed(1):0;
+  setStyle('vc-prog-bar','width',pct+'%');setText('vc-prog-label',pct+'%');
+  setText('dv-total',d.total||0);setText('dv-avail',d.available||0);setText('dv-taken',d.taken||0);setText('dv-status',d.status||'idle');
+  const vpct=d.total>0?(vdone/d.total*100).toFixed(1):0;
+  setStyle('v-prog-bar','width',vpct+'%');setText('nav-vanity-avail',d.available||0);setText('d-vanity-avail',d.available||0);
+  updateVanityUI(S.vanityRunning);
+}
+function onCheckerStopped(d){S.checkerRunning=false;updateCheckerUI(false);updateVanityUI(S.vanityRunning);toast('Checker '+d.status,'',d.status==='completed'?'green':'yellow');fetchStatus();}
+function onVanityStopped(d){S.vanityRunning=false;updateVanityUI(false);updateCheckerUI(S.checkerRunning);toast('Vanity '+d.status,'',d.status==='completed'?'green':'yellow');fetchStatus();}
+function onUsernameResult(d){if(d.status==='valid')appendLog('log-main','success','[OK] AVAILABLE: '+d.username+' ('+d.latency+'ms)');}
+function onVanityResult(d){
+  if(d.status==='available'){appendLog('log-vanity','success','[OK] discord.gg/'+d.code);appendLog('log-main','success','[OK] Vanity: discord.gg/'+d.code);}
+}
+function onProxyFetchDone(d){toast(d.added>0?'Fetched '+d.added+' proxies':'Public proxy fetch disabled','',d.added>0?'green':'yellow');loadProxies(0);}
+
+function updateCheckerUI(r){
+  ['ck-start','tb-start'].forEach(id=>{const e=$(id);if(e)e.style.display=(r||S.vanityRunning)?'none':'';});
+  ['ck-stop','tb-stop'].forEach(id=>{const e=$(id);if(e)e.style.display=r?'':'none';});
+  const e=$('ck-force');if(e)e.style.display=(r||S.vanityRunning)?'none':'';
+  const nr=$('nav-running');if(nr)nr.className='nav-running'+(r?' active':'');
+}
+function updateVanityUI(r){
+  ['v-start','tb-vstart'].forEach(id=>{const e=$(id);if(e)e.style.display=(r||S.checkerRunning)?'none':'';});
+  ['v-stop','tb-vstop'].forEach(id=>{const e=$(id);if(e)e.style.display=r?'':'none';});
+  const nr=$('nav-vanity-running');if(nr)nr.className='nav-running'+(r?' active':'');
+}
+
+/* ══ Logs ════════════════════════════════════════════════════════ */
+function addLog(d){
+  const msg='['+d.time+'] '+d.message;
+  appendLog('log-main',d.level,msg);appendLog('log-checker',d.level,msg);
+  if(d.message&&(d.message.includes('[Vanity]')||d.message.includes('discord.gg')))appendLog('log-vanity',d.level,msg);
+}
+function appendLog(feedId,level,msg){
+  const feed=$(feedId);if(!feed)return;
+  const div=document.createElement('div');div.className='log-line';
+  const now=new Date();
+  const ts=now.toTimeString().slice(0,5);
+  const lvlMap={success:'success',error:'error',warn:'warn',info:'info'};
+  const badgeTexts={success:'OK',error:'ERR',warn:'WRN',info:'INF'};
+  div.innerHTML=`<span class="log-ts">${ts}</span><span class="log-badge ${lvlMap[level]||'info'}">${badgeTexts[level]||'INF'}</span><span class="log-msg">${escHtml(msg.replace(/^\[\d+:\d+\]\s*/,''))}</span>`;
+  feed.appendChild(div);
+  if(feed.children.length>600)feed.removeChild(feed.firstChild);
+  feed.scrollTop=feed.scrollHeight;
+}
+function clearLog(){['log-main','log-checker'].forEach(id=>{const e=$(id);if(e)e.innerHTML='';});}
+function clearVanityLog(){const e=$('log-vanity');if(e)e.innerHTML='';}
+
+/* ══ Checker ════════════════════════════════════════════════════ */
+async function startChecker(){if(S.vanityRunning){toast('Stop vanity checker first','','yellow');return;}if(!(await saveCheckerRunConfig()))return;const r=await api('/api/start','POST',{force:false});if(r){S.checkerRunning=true;updateCheckerUI(true);updateVanityUI(S.vanityRunning);toast('Checker started',r.total+' usernames to check','green');}}
+async function startCheckerForce(){
+  if(S.vanityRunning){toast('Stop vanity checker first','','yellow');return;}
+  if(!confirm('Force re-check will re-check ALL usernames including already-checked ones. Continue?'))return;
+  if(!(await saveCheckerRunConfig()))return;
+  const r=await api('/api/start','POST',{force:true});
+  if(r){S.checkerRunning=true;updateCheckerUI(true);updateVanityUI(S.vanityRunning);toast('Force re-check started',r.total+' usernames','yellow');}
+}
+async function stopChecker(){await api('/api/stop','POST',{});toast('Stop signal sent','','yellow');}
+
+/* ══ Checker Config UI ══════════════════════════════════════════ */
+function setSrcMode(m){
+  S.srcMode=m;
+  ['generate','custom'].forEach(x=>{
+    $('src-'+x).classList.toggle('active',x===m);
+  });
+  $('gen-panel').style.display=m==='generate'?'':'none';
+  $('custom-panel').style.display=m==='custom'?'':'none';
+  updatePreview();
+}
+function setCharset(cs){
+  S.charset=cs;
+  ['discord','alpha','num','alphanum','custom'].forEach(x=>$('cs-'+x).classList.toggle('active',x===cs));
+  $('custom-chars-row').style.display=cs==='custom'?'':'none';
+  updatePreview();
+}
+function setLenMode(lm){
+  S.lenMode=lm;
+  ['exact','upto','range'].forEach(x=>{
+    $('lm-'+x).classList.toggle('active',x===lm);
+    $('len-'+x+'-panel').style.display=x===lm?'':'none';
+  });
+  updatePreview();
+}
+function clampRange(){
+  const mn=parseInt($('len-min').value),mx=parseInt($('len-max').value);
+  if(mx<mn){$('len-max').value=mn;$('len-max-val').textContent=mn;}
+  setText('len-min-val',Math.min(mn,mx));setText('len-max-val',Math.max(mn,mx));
+  updatePreview();
+}
+function updatePreview(){
+  const el=$('gen-preview');if(!el)return;
+  if(S.srcMode==='custom'){el.innerHTML='<span style="color:var(--gold)">Loading from data/usernames.txt</span>';return;}
+  const cs={discord:'a-z + 0-9 + _ + . (38)',alpha:'a-z (26)',num:'0-9 (10)',alphanum:'a-z+0-9 (36)',custom:'custom chars'}[S.charset]||'';
+  let lenDesc='';
+  if(S.lenMode==='exact')lenDesc='Length: '+($('len-exact-slider')?.value||3)+' chars';
+  else if(S.lenMode==='upto')lenDesc='Lengths: 2 to '+($('len-upto-slider')?.value||5)+' chars';
+  else{const mn=$('len-min')?.value||2,mx=$('len-max')?.value||4;lenDesc='Lengths: '+mn+' to '+mx+' chars';}
+  const amt=fmtNum(+($('cfg-amount-slider')?.value||1000));
+  el.innerHTML=`Will generate <strong style="color:var(--gold)">${amt}</strong> usernames &nbsp;|&nbsp; Charset: <strong style="color:var(--gold)">${cs}</strong> &nbsp;|&nbsp; ${lenDesc}`;
+}
+
+/* Sync config UI to globals.Config */
+async function loadConfig(){
+  const cfg=await api('/api/config');if(!cfg)return;
+  const u=cfg.usernames||{};
+  setVal('cfg-custom',u.custom,true);setVal('cfg-amount',u.amount);setVal('cfg-length',u.length);
+  setVal('cfg-threads',cfg.threads);setVal('cfg-timeout',cfg.timeout);setVal('cfg-mindelay',cfg.min_delay_ms||0);
+  setVal('cfg-retry',cfg.retry?.enabled,true);setVal('cfg-webhook',cfg.webhook||'');
+  setVal('cfg-dryrun',cfg.dry_run,true);setVal('cfg-double',cfg.double_verify,true);
+  setVal('cfg-adaptive',cfg.adaptive_rate,true);
+  setVal('ck-dryrun',cfg.dry_run,true);setVal('ck-double',cfg.double_verify,true);setVal('ck-adaptive',cfg.adaptive_rate,true);
+  if(cfg.threads){setVal('ck-threads',cfg.threads);setText('ck-threads-val',cfg.threads);}
+  if(cfg.min_delay_ms!==undefined){setVal('ck-delay',cfg.min_delay_ms);setText('ck-delay-val',cfg.min_delay_ms+'ms');}
+  setVal('cfg-amount-slider',u.amount||1000);setText('cfg-amount-val',fmtNum(u.amount||1000));
+  setVal('len-exact-slider',u.length||3);setText('len-exact-val',u.length||3);
+  setVal('len-upto-slider',u.max_length||u.length||5);setText('len-upto-val',u.max_length||u.length||5);
+  setVal('len-min',u.min_length||2);setText('len-min-val',u.min_length||2);
+  setVal('len-max',u.max_length||u.length||4);setText('len-max-val',u.max_length||u.length||4);
+  setVal('cfg-custom-chars',u.custom_chars||'');
+  setSrcMode(u.custom?'custom':'generate');
+  setCharset(u.charset||'discord');
+  setLenMode(u.length_mode||'exact');
+  toggleCustomMode();
+}
+function toggleCustomMode(){const c=$('cfg-custom')?.checked;const ro=$('random-opts');if(ro)ro.style.display=c?'none':'';}
+function checkerUsernameConfig(){
+  const amount=+($('cfg-amount-slider')?.value||$('cfg-amount')?.value||1000);
+  const exact=+($('len-exact-slider')?.value||$('cfg-length')?.value||3);
+  const upto=+($('len-upto-slider')?.value||exact);
+  const min=+($('len-min')?.value||2),max=+($('len-max')?.value||exact);
+  return {
+    custom:S.srcMode==='custom',
+    amount,
+    length:exact,
+    length_mode:S.lenMode,
+    min_length:S.lenMode==='range'?min:2,
+    max_length:S.lenMode==='upto'?upto:(S.lenMode==='range'?max:exact),
+    charset:S.charset,
+    custom_chars:($('cfg-custom-chars')?.value||'').trim().toLowerCase()
+  };
+}
+async function saveConfig(){
+  const userCfg=$('cfg-custom')?{...checkerUsernameConfig(),custom:$('cfg-custom').checked,amount:parseInt($('cfg-amount').value)||1000,length:parseInt($('cfg-length').value)||3}:checkerUsernameConfig();
+  const cfg={
+    usernames:userCfg,
+    retry:{enabled:$('cfg-retry').checked,max_attempts:5},
+    threads:parseInt($('cfg-threads').value)||10,timeout:parseInt($('cfg-timeout').value)||30,
+    webhook:$('cfg-webhook').value.trim(),dry_run:$('cfg-dryrun').checked,
+    double_verify:$('cfg-double').checked,adaptive_rate:$('cfg-adaptive').checked,
+    skip_duplicates:true,min_delay_ms:parseInt($('cfg-mindelay').value)||0
+  };
+  const r=await api('/api/config','POST',cfg);
+  if(r)toast('Configuration saved','','green');
+}
+async function saveCheckerRunConfig(){
+  const cfg=await api('/api/config');if(!cfg)return false;
+  cfg.usernames=checkerUsernameConfig();
+  cfg.threads=+($('ck-threads')?.value||cfg.threads||10);
+  cfg.min_delay_ms=+($('ck-delay')?.value||cfg.min_delay_ms||0);
+  cfg.dry_run=!!$('ck-dryrun')?.checked;
+  cfg.double_verify=!!$('ck-double')?.checked;
+  cfg.adaptive_rate=!!$('ck-adaptive')?.checked;
+  cfg.retry=cfg.retry||{enabled:false,max_attempts:5};
+  return !!(await api('/api/config','POST',cfg));
+}
+async function quickSave(field,value){
+  const cfg=await api('/api/config');if(!cfg)return;
+  cfg[field]=value;await api('/api/config','POST',cfg);
+}
+
+/* ══ Vanity ═════════════════════════════════════════════════════ */
+async function startVanity(){if(S.checkerRunning){toast('Stop username checker first','','yellow');return;}await saveVanityConfig();const r=await api('/api/vanity/start','POST',{});if(r){S.vanityRunning=true;updateVanityUI(true);updateCheckerUI(S.checkerRunning);toast('Vanity checker started',r.total+' codes','green');}}
+async function stopVanity(){await api('/api/vanity/stop','POST',{});toast('Stop signal sent','','yellow');}
+
+function setVMode(m){
+  S.vMode=m;
+  ['random','exhaustive','custom'].forEach(x=>$('vtab-'+x).classList.toggle('active',x===m));
+  $('vgen-panel').style.display=m==='custom'?'none':'';
+  $('vcustom-panel').style.display=m==='custom'?'':'none';
+  $('vamount-row').style.display=m==='random'?'':'none';
+  updateVEstimate();
+}
+function setVCharset(cs){
+  S.vCharset=cs;
+  ['discord','alpha','alphanum','custom'].forEach(x=>$('vcs-'+x).classList.toggle('active',x===cs));
+  $('vcs-custom-row').style.display=cs==='custom'?'':'none';
+  updateVEstimate();
+}
+function clampVRange(){
+  const mn=parseInt($('vck-minlen').value),mx=parseInt($('vck-maxlen').value);
+  if(mx<mn){$('vck-maxlen').value=mn;setText('vck-maxlen-val',mn);}
+  setText('vck-minlen-val',Math.min(mn,mx));setText('vck-maxlen-val',Math.max(mn,mx));
+  updateVEstimate();
+}
+function updateVEstimate(){
+  const el=$('vcombo-estimate');if(!el)return;
+  if(S.vMode==='custom'){el.innerHTML='<span style="color:var(--gold)">Using codes from data/vanity.txt</span>';return;}
+  if(S.vMode==='random'){el.innerHTML='<span style="color:var(--gold)">Will generate <strong>'+fmtNum(+($('vck-amount').value||5000))+'</strong> random codes</span>';return;}
+  const sizes={discord:37,alpha:26,alphanum:36,custom:($('vck-custom-chars')?.value||'').length||1};
+  const base=sizes[S.vCharset]||26;
+  const minL=+($('vck-minlen').value||2),maxL=+($('vck-maxlen').value||4);
+  let total=0;for(let l=minL;l<=maxL;l++)total+=Math.pow(base,l-($('vck-prefix').value||'').length);
+  const capped=Math.min(total,500000);
+  el.innerHTML='~<strong style="color:var(--teal)">'+fmtNum(Math.round(capped))+'</strong> combinations'+(total>500000?' <span style="color:var(--red);font-size:11px">(capped at 500k)</span>':'');
+}
+async function loadVanityConfig(){
+  const cfg=await api('/api/vanity/config');if(!cfg)return;
+  setVal('vck-threads',cfg.threads||10);setText('vck-threads-val',cfg.threads||10);
+  setVal('vck-delay',cfg.min_delay_ms||0);setText('vck-delay-val',(cfg.min_delay_ms||0)+'ms');
+  setVal('vck-skip',cfg.skip_duplicates!==false,true);setVal('vck-adaptive',cfg.adaptive_rate!==false,true);
+  setVal('vck-amount',cfg.amount||5000);setText('vck-amount-val',fmtNum(cfg.amount||5000));
+  setVal('vck-minlen',cfg.min_length||3);setVal('vck-maxlen',cfg.max_length||4);
+  setText('vck-minlen-val',cfg.min_length||3);setText('vck-maxlen-val',cfg.max_length||4);
+  setVal('vck-prefix',cfg.prefix||'');
+  const cs=cfg.charset||'discord';S.vCharset=cs;['discord','alpha','alphanum','custom'].forEach(x=>$('vcs-'+x)?.classList.toggle('active',x===cs));
+  $('vcs-custom-row').style.display=cs==='custom'?'':'none';
+  if(cfg.custom_chars)setVal('vck-custom-chars',cfg.custom_chars);
+  const mode=cfg.exhaustive?'exhaustive':(cfg.custom?'custom':'random');setVMode(mode);
+  updateVEstimate();
+}
+async function saveVanityConfig(){
+  const cfg={
+    custom:S.vMode==='custom',exhaustive:S.vMode==='exhaustive',
+    amount:+($('vck-amount').value||5000),min_length:+($('vck-minlen').value||2),max_length:+($('vck-maxlen').value||4),
+    prefix:($('vck-prefix').value||'').trim().toLowerCase(),charset:S.vCharset,
+    custom_chars:($('vck-custom-chars')?.value||'').trim().toLowerCase(),
+    threads:+($('vck-threads').value||10),timeout:30,
+    adaptive_rate:$('vck-adaptive').checked,skip_duplicates:$('vck-skip').checked,
+    min_delay_ms:+($('vck-delay').value||0)
+  };
+  await api('/api/vanity/config','POST',cfg);
+}
+
+/* ══ Results ════════════════════════════════════════════════════ */
+async function loadResults(offset){
+  S.resOff=offset||0;
+  const status=$('res-status').value,search=$('res-search').value,limit=+($('res-limit').value)||50;
+  const data=await api('/api/results?'+new URLSearchParams({status,search,limit,offset:S.resOff}));
+  if(!data)return;
+  setText('res-count',data.total+' results');
+  const tbody=$('res-body');
+  if(!data.results?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="6">No results found</td></tr>';$('res-pag').innerHTML='';return;}
+  const stMap={valid:'bg-g',taken:'bg-r',blacklisted:'bg-gr',error:'bg-y',dry_run:'bg-b'};
+  tbody.innerHTML=data.results.map(r=>`<tr><td style="font-family:monospace;font-weight:700;color:${r.status==='valid'?'var(--green)':'var(--brand)'}">${escHtml(r.username)}</td><td><span class="badge ${stMap[r.status]||'bg-gr'}">${r.status}</span></td><td>${r.latency_ms>0?latBadge(r.latency_ms):'—'}</td><td><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">${(r.tags||[]).map(t=>'<span class="badge bg-p">'+escHtml(t)+'</span>').join('')}<button class="btn btn-ghost btn-xs" onclick="tagRes(${r.id},${JSON.stringify(r.tags||[])})">${SVG.edit}</button></div></td><td style="font-size:11px;color:var(--dim)">${new Date(r.checked_at).toLocaleString()}</td><td><button class="btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText('${escHtml(r.username)}');toast('Copied','','green')">${SVG.copy}</button></td></tr>`).join('');
+  renderPag('res-pag',data.total,limit,S.resOff,'loadResults');
+}
+async function clearResults(){if(!confirm('Clear all username results?'))return;await api('/api/results','DELETE');toast('Results cleared','','yellow');loadResults();}
+async function tagRes(id,cur){const input=prompt('Tags (comma separated):',(cur||[]).join(', '));if(input===null)return;await api('/api/results/tag/'+id,'POST',{tags:input.split(',').map(t=>t.trim()).filter(Boolean)});loadResults(S.resOff);}
+
+/* ══ Vanity Results ══════════════════════════════════════════════ */
+async function loadVanityResults(offset){
+  S.vresOff=offset||0;
+  const status=$('vres-status').value,search=$('vres-search').value,limit=+($('vres-limit').value)||50;
+  const data=await api('/api/vanity/results?'+new URLSearchParams({status,search,limit,offset:S.vresOff}));
+  if(!data)return;
+  setText('vres-count',data.total+' results');
+  const tbody=$('vres-body');
+  if(!data.results?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">No vanity results found</td></tr>';$('vres-pag').innerHTML='';return;}
+  const stM={available:'bg-tl',taken:'bg-r',error:'bg-y'};
+  const stI={available:SVG.star,taken:SVG.lock,error:SVG.alert};
+  tbody.innerHTML=data.results.map(r=>`<tr><td style="font-family:monospace;font-weight:700;color:${r.status==='available'?'var(--teal)':'var(--brand)'}">${escHtml(r.code)}</td><td><a href="https://discord.gg/${escHtml(r.code)}" target="_blank" style="color:var(--blue);font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">${SVG.link}discord.gg/${escHtml(r.code)}</a></td><td><span class="badge ${stM[r.status]||'bg-gr'}">${stI[r.status]||''} ${r.status}</span></td><td style="color:var(--dim);font-size:12px">${escHtml(r.guild_name||'—')}</td><td>${r.latency_ms>0?latBadge(r.latency_ms):'—'}</td><td><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">${(r.tags||[]).map(t=>'<span class="badge bg-p">'+escHtml(t)+'</span>').join('')}<button class="btn btn-ghost btn-xs" onclick="tagVR(${r.id},${JSON.stringify(r.tags||[])})">${SVG.edit}</button></div></td><td style="font-size:11px;color:var(--dim)">${new Date(r.checked_at).toLocaleString()}</td><td><button class="btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText('https://discord.gg/${escHtml(r.code)}');toast('Copied','','green')">${SVG.copy}</button></td></tr>`).join('');
+  renderPag('vres-pag',data.total,limit,S.vresOff,'loadVanityResults');
+}
+async function clearVanityResults(){if(!confirm('Clear ALL vanity results? This resets dedup history.'))return;await api('/api/vanity/results','DELETE');toast('Cleared','','yellow');loadVanityResults();}
+async function tagVR(id,cur){const input=prompt('Tags:',(cur||[]).join(', '));if(input===null)return;await api('/api/vanity/results/tag/'+id,'POST',{tags:input.split(',').map(t=>t.trim()).filter(Boolean)});loadVanityResults(S.vresOff);}
+
+/* ══ Sessions ════════════════════════════════════════════════════ */
+async function loadSessions(){
+  const sessions=await api('/api/sessions');if(!sessions)return;
+  const tbody=$('sess-body');
+  if(!sessions?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="9">No sessions yet</td></tr>';return;}
+  const sm={running:'bg-b',completed:'bg-g',stopped:'bg-y'};
+  tbody.innerHTML=sessions.map(s=>`<tr><td style="color:var(--dim)">#${s.id}</td><td><span class="badge ${sm[s.status]||'bg-gr'}">${s.status}</span></td><td><span class="badge bg-b">${s.mode}</span></td><td>${s.total}</td><td style="color:var(--green)">${s.valid}</td><td style="color:var(--red)">${s.invalid}</td><td>${s.total>0?((s.valid/s.total)*100).toFixed(1)+'%':'—'}</td><td style="font-size:11px;color:var(--dim)">${new Date(s.started_at).toLocaleString()}</td><td>${s.finished_at?fmtMs(new Date(s.finished_at)-new Date(s.started_at)):'—'}</td></tr>`).join('');
+}
+async function loadVanitySessions(){
+  const sessions=await api('/api/vanity/sessions');if(!sessions)return;
+  const tbody=$('vsess-body');
+  if(!sessions?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">No vanity sessions yet</td></tr>';return;}
+  const sm={running:'bg-b',completed:'bg-tl',stopped:'bg-y'};
+  tbody.innerHTML=sessions.map(s=>`<tr><td style="color:var(--dim)">#${s.id}</td><td><span class="badge ${sm[s.status]||'bg-gr'}">${s.status}</span></td><td>${s.total}</td><td style="color:var(--teal);font-weight:700">${s.available}</td><td style="color:var(--red)">${s.taken}</td><td>${s.total>0?((s.available/s.total)*100).toFixed(1)+'%':'—'}</td><td style="font-size:11px;color:var(--dim)">${new Date(s.started_at).toLocaleString()}</td><td>${s.finished_at?fmtMs(new Date(s.finished_at)-new Date(s.started_at)):'—'}</td></tr>`).join('');
+}
+
+/* ══ Proxies ════════════════════════════════════════════════════ */
+async function loadProxies(offset){
+  S.proxyOff=offset||0;
+  const filter=$('proxy-filter')?.value||'',limit=50;
+  const data=await api('/api/proxies?'+new URLSearchParams({filter,limit,offset:S.proxyOff}));if(!data)return;
+  const list=Array.isArray(data)?data:(data.proxies||[]);
+  const stats=data.stats||{};
+  const healthy=stats.healthy??list.filter(p=>p.healthy).length;
+  const total=stats.total??list.length;
+  const dead=stats.dead??(total-healthy);
+  const avgLat=stats.avg_latency_ms||0;
+  setText('px-total',total);setText('px-healthy',healthy);setText('px-dead',dead);setText('px-lat',avgLat||'—');
+  setText('nav-proxy-count',healthy);setText('d-proxies',healthy);
+  const tbody=$('proxy-body');
+  if(!list.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">No proxies</td></tr>';renderPag('proxy-pag',data.total||0,limit,S.proxyOff,'loadProxies');return;}
+  tbody.innerHTML=list.map(p=>`<tr id="prow-${p.id}"><td><span class="dot ${p.healthy?'dot-g':'dot-r'}"></span>${p.healthy?'<span class="badge bg-g" style="margin-left:4px">OK</span>':'<span class="badge bg-r" style="margin-left:4px">Dead</span>'}</td><td style="font-family:monospace;font-size:12px;max-width:170px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${escHtml(p.url)}</td><td><span class="badge bg-b">${(p.type||'http').toUpperCase()}</span></td><td>${p.avg_latency_ms>0?latBadge(p.avg_latency_ms):'—'}</td><td style="color:var(--green)">${p.success_count}</td><td style="color:var(--red)">${p.fail_count}</td><td style="font-size:11px;color:var(--dim)">${p.last_checked?new Date(p.last_checked).toLocaleTimeString():'—'}</td><td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="testProxy(${p.id})">${SVG.test}</button><button class="btn btn-red btn-xs" onclick="deleteProxy(${p.id})">${SVG.trash}</button></div></td></tr>`).join('');
+  renderPag('proxy-pag',data.total||list.length,limit,S.proxyOff,'loadProxies');
+}
+function latBadge(ms){const c=ms<300?'bg-g':ms<1000?'bg-y':'bg-r';return`<span class="badge ${c}">${ms}ms</span>`;}
+async function addProxies(){
+  const raw=$('proxy-input').value.trim();if(!raw){toast('Enter proxy URLs','','red');return;}
+  const res=await api('/api/proxies','POST',{urls:raw.split('\n').map(s=>s.trim()).filter(Boolean),type:$('proxy-type').value});
+  if(res){toast('Added '+res.added+' proxies','','green');$('proxy-input').value='';countProxyLines();loadProxies(0);}
+}
+async function testProxy(id){
+  toast('Testing...','','blue');const row=$('prow-'+id);if(row)row.style.opacity='.5';
+  const res=await api('/api/proxies/test/'+id,'POST');
+  if(row)row.style.opacity='1';if(res){toast(res.healthy?'OK — '+res.latency+'ms':'Dead: '+(res.error||'failed'),'',res.healthy?'green':'red');loadProxies(S.proxyOff);}
+}
+async function testAllProxies(){toast('Testing all proxies...','','blue');await api('/api/proxies/test/all','POST');}
+async function fetchPublicProxies(){toast('Public proxy auto-fetch is disabled','','yellow');}
+async function deleteProxy(id){if(!confirm('Delete proxy?'))return;await api('/api/proxies/'+id,'DELETE');loadProxies(S.proxyOff);}
+async function deleteAllProxies(){if(!confirm('Delete ALL proxies?'))return;await api('/api/proxies','DELETE');toast('Deleted','','yellow');loadProxies(0);}
+function onProxyUpdate(d){const row=$('prow-'+d.id);if(!row)return;row.cells[0].innerHTML='<span class="dot '+(d.healthy?'dot-g':'dot-r')+'"></span>'+(d.healthy?'<span class="badge bg-g" style="margin-left:4px">OK</span>':'<span class="badge bg-r" style="margin-left:4px">Dead</span>');if(d.healthy&&d.latency)row.cells[3].innerHTML=latBadge(d.latency);}
+function countProxyLines(){const v=$('proxy-input')?.value||'';setText('proxy-lcount',(v?v.split('\n').filter(l=>l.trim()).length:0)+' lines');}
+
+/* ══ Status Fetch ════════════════════════════════════════════════ */
+async function fetchStatus(){
+  const d=await api('/api/status');if(!d)return;
+  S.checkerRunning=d.running;S.vanityRunning=d.vanity_running;
+  updateCheckerUI(d.running);updateVanityUI(d.vanity_running);
+  setText('d-valid',d.valid||0);setText('d-invalid',d.invalid||0);setText('nav-valid-count',d.valid||0);
+  if(!d.running&&d.username_cooldown_ms>0)setText('ck-status','Cooldown '+fmtMs(d.username_cooldown_ms));
+  if(!d.vanity_running&&d.vanity_cooldown_ms>0)setText('vc-status','Cooldown '+fmtMs(d.vanity_cooldown_ms));
+  if(d.db_stats){const s=d.db_stats;setText('dbs-results',s.total_results||0);setText('dbs-valid',s.valid_results||0);setText('dbs-vanity',s.total_vanity||0);setText('dbs-vanity-avail',s.available_vanity||0);setText('dbs-sessions',s.total_sessions||0);setText('dbs-proxies',s.total_proxies||0);setText('dbs-healthy',s.healthy_proxies||0);setText('nav-proxy-count',s.healthy_proxies||0);setText('d-proxies',s.healthy_proxies||0);setText('d-vanity-avail',s.available_vanity||0);setText('nav-vanity-avail',s.available_vanity||0);}
+}
+
+/* ══ Pagination ══════════════════════════════════════════════════ */
+function renderPag(id,total,limit,offset,fn){
+  const pages=Math.ceil(total/limit),cur=Math.floor(offset/limit),el=$(id);
+  if(!el||pages<=1){if(el)el.innerHTML='';return;}
+  let h='';
+  if(cur>0)h+=`<button class="btn btn-ghost btn-sm" onclick="${fn}(${(cur-1)*limit})">Prev</button>`;
+  h+=`<span style="color:var(--dim);font-size:12px;padding:6px 10px">${cur+1} / ${pages}</span>`;
+  if(cur<pages-1)h+=`<button class="btn btn-ghost btn-sm" onclick="${fn}(${(cur+1)*limit})">Next</button>`;
+  el.innerHTML=h;
+}
+
+/* ══ Toast ═══════════════════════════════════════════════════════ */
+function toast(title,msg='',type='green'){
+  const ic={green:SVG.check,red:SVG.x,yellow:SVG.alert,blue:SVG.info}[type]||SVG.info;
+  const col={green:'var(--green)',red:'var(--red)',yellow:'#fbbf24',blue:'var(--blue)'}[type]||'var(--green)';
+  const wrap=$('toast-wrap');
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<span class="toast-icon" style="color:${col}">${ic}</span><div class="toast-body"><div class="toast-title">${escHtml(title)}</div>${msg?`<div class="toast-msg">${escHtml(msg)}</div>`:''}</div>`;
+  wrap.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),250);},3500);
+}
+
+/* ══ API ════════════════════════════════════════════════════════ */
+async function api(path,method='GET',body){
+  try{
+    const opts={method,headers:{'Content-Type':'application/json'}};
+    if(body!==undefined)opts.body=JSON.stringify(body);
+    const res=await fetch(path,opts);const data=await res.json();
+    if(!res.ok){toast(data.error||'Request failed','',res.status===409||res.status===429?'yellow':'red');return null;}
+    return data;
+  }catch(e){return null;}
+}
+
+/* ══ Init ════════════════════════════════════════════════════════ */
+connectWS();fetchStatus();loadProxies();
+setInterval(fetchStatus,5000);
+updatePreview();setSrcMode('generate');setCharset('discord');setLenMode('exact');
+</script>
+</body>
+</html>
