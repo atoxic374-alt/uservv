@@ -10,6 +10,7 @@ import (
 	"users/database"
 	"users/globals"
 	"users/logger"
+	"users/proxy"
 	"users/types"
 )
 
@@ -26,7 +27,9 @@ func logUsernameCheckError(username string, err error, workerID int) {
 	globals.BroadcastLog("warn", msg)
 }
 
-func CheckerInit(ctx context.Context, username string, sessionID int64, workerID int) {
+// CheckerInit checks one username using the worker's assigned proxy.
+// assignedProxy may be nil (direct connection).
+func CheckerInit(ctx context.Context, username string, sessionID int64, workerID int, assignedProxy *types.Proxy) {
 	select {
 	case <-ctx.Done():
 		return
@@ -40,15 +43,14 @@ func CheckerInit(ctx context.Context, username string, sessionID int64, workerID
 		globals.BroadcastLog("warn", msg)
 
 		if sessionID > 0 {
-			r := &types.Result{
+			database.SaveResult(&types.Result{
 				SessionID: sessionID,
 				Username:  username,
 				Status:    "blacklisted",
 				CheckedAt: time.Now(),
 				Tags:      []string{},
 				LatencyMs: 0,
-			}
-			database.SaveResult(r)
+			})
 		}
 		globals.BroadcastEvent("username_result", map[string]interface{}{
 			"username": username,
@@ -76,9 +78,9 @@ func CheckerInit(ctx context.Context, username string, sessionID int64, workerID
 	var err error
 
 	if globals.Config.DoubleVerify {
-		taken, latency, err = CheckUsername(ctx, username)
+		taken, latency, err = CheckUsername(ctx, username, assignedProxy)
 	} else {
-		taken, latency, err = CheckUsernameSimple(ctx, username)
+		taken, latency, err = CheckUsernameSimple(ctx, username, assignedProxy)
 	}
 
 	if err != nil {
@@ -170,8 +172,17 @@ func RunChecker(ctx context.Context, usernames []string, sessionID int64) {
 	atomic.StoreInt64(&usernameErrorLogCount, 0)
 
 	total := int64(len(usernames))
-	logger.Info(fmt.Sprintf("Starting checker with %d usernames, %d threads", total, globals.Config.Threads))
-	globals.BroadcastLog("info", fmt.Sprintf("Starting checker: %d usernames | %d threads", total, globals.Config.Threads))
+	pm := proxy.Default
+	proxyCount := pm.Count()
+
+	logger.Info(fmt.Sprintf("Starting checker with %d usernames, %d threads, %d proxies",
+		total, globals.Config.Threads, proxyCount))
+	globals.BroadcastLog("info", fmt.Sprintf("Starting checker: %d usernames | %d threads | %d proxies",
+		total, globals.Config.Threads, proxyCount))
+
+	if proxyCount == 0 {
+		globals.BroadcastLog("warn", "No proxies configured; using direct connection — rate limits apply per IP")
+	}
 
 	if globals.Config.DryRun {
 		globals.BroadcastLog("warn", "DRY RUN mode enabled — no real requests will be made")
@@ -179,6 +190,15 @@ func RunChecker(ctx context.Context, usernames []string, sessionID int64) {
 	if globals.Config.DoubleVerify {
 		globals.BroadcastLog("info", "Double verification mode enabled")
 	}
+
+	// Pre-assign one proxy per worker (sticky assignment).
+	// Each proxy has its own independent Discord rate-limit bucket, so
+	// N workers × N different proxies = N parallel independent request streams.
+	threads := globals.Config.Threads
+	if threads < 1 {
+		threads = 1
+	}
+	workerProxies := assignWorkerProxies(pm, threads)
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -206,18 +226,14 @@ func RunChecker(ctx context.Context, usernames []string, sessionID int64) {
 		}
 	}()
 
-	usernameChannel := make(chan string, globals.Config.Threads*2)
+	usernameChannel := make(chan string, threads*2)
 	var wg sync.WaitGroup
-
-	threads := globals.Config.Threads
-	if threads < 1 {
-		threads = 1
-	}
 
 	for i := 1; i <= threads; i++ {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
+			assignedProxy := workerProxies[workerID-1] // may be nil
 			for {
 				select {
 				case <-ctx.Done():
@@ -226,7 +242,7 @@ func RunChecker(ctx context.Context, usernames []string, sessionID int64) {
 					if !ok {
 						return
 					}
-					CheckerInit(ctx, username, sessionID, workerID)
+					CheckerInit(ctx, username, sessionID, workerID, assignedProxy)
 				}
 			}
 		}(i)
@@ -279,4 +295,20 @@ func RunChecker(ctx context.Context, usernames []string, sessionID int64) {
 	msg := fmt.Sprintf("Checker %s. Valid: %d | Invalid: %d", status, valid, invalid)
 	logger.Info(msg)
 	globals.BroadcastLog("info", msg)
+}
+
+// assignWorkerProxies distributes proxies across workers in round-robin fashion.
+// If there are more workers than proxies, multiple workers share a proxy.
+// If there are no proxies, all workers get nil (direct connection).
+func assignWorkerProxies(pm *proxy.Manager, threads int) []*types.Proxy {
+	result := make([]*types.Proxy, threads)
+	if pm.Count() == 0 {
+		return result // all nil → direct
+	}
+	proxies := pm.All()
+	for i := range threads {
+		p := proxies[i%len(proxies)]
+		result[i] = &p
+	}
+	return result
 }

@@ -38,6 +38,97 @@ const (
 	RateRouteVanity   = "vanity"
 )
 
+// Pool of realistic Chrome User-Agents — rotated per request
+var userAgentPool = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:137.0) Gecko/20100101 Firefox/137.0",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0",
+}
+
+// UserAgent — default UA (kept for backwards compat; prefer RandomUserAgent())
+var UserAgent = userAgentPool[0]
+
+// RandomUserAgent picks a random UA from the pool
+func RandomUserAgent() string {
+	return userAgentPool[rand.Intn(len(userAgentPool))]
+}
+
+// ─── Fingerprint pool ───────────────────────────────────────────────────────
+
+const fingerprintPoolSize = 8
+
+type fingerprintEntry struct {
+	value   string
+	fetched time.Time
+}
+
+var (
+	fpPool  [fingerprintPoolSize]fingerprintEntry
+	fpMu    sync.Mutex
+	fpRound int64 // atomic round-robin counter
+)
+
+// GetDiscordFingerprint returns a fingerprint from the rotating pool.
+// Each slot is refreshed after 10 minutes.
+func GetDiscordFingerprint(ctx context.Context) string {
+	idx := int(atomic.AddInt64(&fpRound, 1) % fingerprintPoolSize)
+	fpMu.Lock()
+	e := &fpPool[idx]
+	if e.value != "" && time.Since(e.fetched) < 10*time.Minute {
+		v := e.value
+		fpMu.Unlock()
+		return v
+	}
+	fpMu.Unlock()
+
+	fp := fetchFingerprint(ctx)
+	if fp != "" {
+		fpMu.Lock()
+		fpPool[idx] = fingerprintEntry{value: fp, fetched: time.Now()}
+		fpMu.Unlock()
+	}
+	return fp
+}
+
+func fetchFingerprint(ctx context.Context) string {
+	ua := RandomUserAgent()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, DiscordExperimentsAPI, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Referer", "https://discord.com/register")
+	req.Header.Set("User-Agent", ua)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var payload struct {
+		Fingerprint string `json:"fingerprint"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return ""
+	}
+	return payload.Fingerprint
+}
+
+// ─── Per-proxy / per-route rate limiters ───────────────────────────────────
+// Key format:  "<route>:<proxyKey>"
+// proxyKey is the proxy URL string, or "direct" when no proxy is used.
+// Each proxy IP has its own independent rate-limit bucket, matching how
+// Discord tracks limits on the server side.
+
 type discordRouteLimiter struct {
 	mu        sync.Mutex
 	rateDelay time.Duration
@@ -47,9 +138,33 @@ type discordRouteLimiter struct {
 }
 
 var (
+	limitersMu sync.Mutex
+	limitersMap = map[string]*discordRouteLimiter{}
+)
+
+// ProxyKeyDirect is the key used when no proxy is configured.
+const ProxyKeyDirect = "direct"
+
+func limiterFor(route, proxyKey string) *discordRouteLimiter {
+	if proxyKey == "" {
+		proxyKey = ProxyKeyDirect
+	}
+	key := route + ":" + proxyKey
+	limitersMu.Lock()
+	defer limitersMu.Unlock()
+	if l, ok := limitersMap[key]; ok {
+		return l
+	}
+	l := &discordRouteLimiter{}
+	limitersMap[key] = l
+	return l
+}
+
+// ─── Shared state ──────────────────────────────────────────────────────────
+
+var (
 	Config       types.Config
 	VanityConfig types.VanityConfig
-	UserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
 
 	Proxies   = []string{}
 	Usernames = []string{}
@@ -66,13 +181,14 @@ var (
 	CheckerCancel    context.CancelFunc
 	CheckerStartTime time.Time
 
+	// Kept for backwards compat with code that still references it directly
 	FingerprintMu      sync.Mutex
 	DiscordFingerprint string
-	usernameLimiter    discordRouteLimiter
-	vanityLimiter      discordRouteLimiter
 
 	EventCh = make(chan types.Event, 512)
 )
+
+// ─── Event broadcasting ────────────────────────────────────────────────────
 
 func BroadcastEvent(eventType string, data interface{}) {
 	select {
@@ -88,6 +204,8 @@ func BroadcastLog(level, msg string) {
 		Time:    time.Now().Format("15:04:05"),
 	})
 }
+
+// ─── Checker state ─────────────────────────────────────────────────────────
 
 func IsCheckerRunning() bool { return atomic.LoadInt32(&CheckerRunning) != CheckerStateIdle }
 
@@ -142,6 +260,8 @@ func GetCurrentRate() float64 {
 	return float64(atomic.LoadInt64(&ValidUsernames)+atomic.LoadInt64(&InvalidUsernames)) / elapsed
 }
 
+// ─── Rate limit helpers ────────────────────────────────────────────────────
+
 func waitContext(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
@@ -170,92 +290,98 @@ func parseRetryAfter(value string) time.Duration {
 	return 0
 }
 
-func limiterFor(route string) *discordRouteLimiter {
-	if route == RateRouteVanity {
-		return &vanityLimiter
-	}
-	return &usernameLimiter
-}
-
-func resetRatePacing(route string) {
-	l := limiterFor(route)
-	l.mu.Lock()
-	l.rateDelay = 0
-	l.lastCall = time.Time{}
-	l.mu.Unlock()
-}
-
+// ResetRateLimiter clears all per-proxy limiters.
 func ResetRateLimiter() {
-	resetRatePacing(RateRouteUsername)
-	resetRatePacing(RateRouteVanity)
+	limitersMu.Lock()
+	limitersMap = map[string]*discordRouteLimiter{}
+	limitersMu.Unlock()
 }
 
 func CooldownRemaining(route string) time.Duration {
-	l := limiterFor(route)
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.until.IsZero() {
-		return 0
+	// Return the longest cooldown across all limiters for this route
+	limitersMu.Lock()
+	var max time.Duration
+	for key, l := range limitersMap {
+		if !strings.HasPrefix(key, route+":") {
+			continue
+		}
+		l.mu.Lock()
+		rem := time.Until(l.until)
+		l.mu.Unlock()
+		if rem > max {
+			max = rem
+		}
 	}
-	remaining := time.Until(l.until)
-	if remaining <= 0 {
-		l.until = time.Time{}
-		return 0
-	}
-	return remaining
+	limitersMu.Unlock()
+	return max
 }
 
-func RegisterDiscordRateLimitFor(route, retryAfter string) time.Duration {
+// RegisterDiscordRateLimitFor records a 429 hit for a specific route+proxy.
+func RegisterDiscordRateLimitFor(route, proxyKey, retryAfter string) time.Duration {
 	cooldown := parseRetryAfter(retryAfter)
-	if cooldown < 3*time.Second {
-		cooldown = 3 * time.Second
+	if cooldown < 2*time.Second {
+		cooldown = 2 * time.Second
 	}
-	if cooldown > time.Hour {
-		cooldown = time.Hour
+	if cooldown > 30*time.Minute {
+		cooldown = 30 * time.Minute
 	}
-	cooldown += 500 * time.Millisecond
+	cooldown += 300 * time.Millisecond // small safety buffer
 
-	l := limiterFor(route)
+	l := limiterFor(route, proxyKey)
 	l.mu.Lock()
 	until := time.Now().Add(cooldown)
 	if until.After(l.until) {
 		l.until = until
 	}
+	// Increase per-proxy delay on rate-limit hit
 	if l.rateDelay == 0 {
-		l.rateDelay = 700 * time.Millisecond
+		l.rateDelay = 500 * time.Millisecond
 	} else if l.rateDelay < 5*time.Second {
-		l.rateDelay *= 2
+		l.rateDelay = l.rateDelay * 3 / 2
 		if l.rateDelay > 5*time.Second {
 			l.rateDelay = 5 * time.Second
 		}
 	}
-	shouldLog := time.Since(l.lastLog) > 5*time.Second
+	shouldLog := time.Since(l.lastLog) > 3*time.Second
 	if shouldLog {
 		l.lastLog = time.Now()
 	}
 	l.mu.Unlock()
 
 	if shouldLog {
-		BroadcastLog("warn", fmt.Sprintf("Discord %s rate limit: pausing requests for %s", route, FormatDuration(cooldown)))
+		pk := proxyKey
+		if len(pk) > 30 {
+			pk = pk[:30] + "…"
+		}
+		if pk == ProxyKeyDirect {
+			pk = "direct"
+		}
+		BroadcastLog("warn", fmt.Sprintf("Discord %s rate limit [%s]: pausing %s", route, pk, FormatDuration(cooldown)))
 	}
 	return cooldown
 }
 
+// RegisterDiscordRateLimit — backwards-compat wrapper (direct connection, username route)
 func RegisterDiscordRateLimit(retryAfter string) time.Duration {
-	return RegisterDiscordRateLimitFor(RateRouteUsername, retryAfter)
+	return RegisterDiscordRateLimitFor(RateRouteUsername, ProxyKeyDirect, retryAfter)
 }
 
-func DecreaseDelayFor(route string) {
-	l := limiterFor(route)
+// DecreaseDelayFor reduces the per-proxy delay after a successful request.
+func DecreaseDelayFor(route, proxyKey string) {
+	l := limiterFor(route, proxyKey)
 	l.mu.Lock()
 	if l.rateDelay > 0 {
-		l.rateDelay /= 2
+		l.rateDelay = l.rateDelay * 2 / 3
+		if l.rateDelay < 50*time.Millisecond {
+			l.rateDelay = 0
+		}
 	}
 	l.mu.Unlock()
 }
 
+// DecreaseDelay — backwards-compat
 func DecreaseDelay() {
-	DecreaseDelayFor(RateRouteUsername)
+	DecreaseDelayFor(RateRouteUsername, ProxyKeyDirect)
 }
 
 func FormatDuration(d time.Duration) string {
@@ -271,9 +397,12 @@ func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm%02ds", minutes, seconds)
 }
 
-func ObserveDiscordRateLimitHeadersFor(route string, header http.Header) {
+// ObserveDiscordRateLimitHeadersFor reads rate-limit headers and registers a
+// limit proactively when X-RateLimit-Remaining reaches 0 or 1.
+func ObserveDiscordRateLimitHeadersFor(route, proxyKey string, header http.Header) {
 	remaining := strings.TrimSpace(header.Get("X-RateLimit-Remaining"))
-	if remaining != "0" {
+	rem, err := strconv.Atoi(remaining)
+	if err != nil || rem > 1 {
 		return
 	}
 	retryAfter := header.Get("X-RateLimit-Reset-After")
@@ -283,11 +412,12 @@ func ObserveDiscordRateLimitHeadersFor(route string, header http.Header) {
 	if retryAfter == "" {
 		return
 	}
-	RegisterDiscordRateLimitFor(route, retryAfter)
+	RegisterDiscordRateLimitFor(route, proxyKey, retryAfter)
 }
 
+// ObserveDiscordRateLimitHeaders — backwards-compat
 func ObserveDiscordRateLimitHeaders(header http.Header) {
-	ObserveDiscordRateLimitHeadersFor(RateRouteUsername, header)
+	ObserveDiscordRateLimitHeadersFor(RateRouteUsername, ProxyKeyDirect, header)
 }
 
 func RetryAfterValue(header http.Header, body []byte) string {
@@ -306,70 +436,45 @@ func RetryAfterValue(header http.Header, body []byte) string {
 	return ""
 }
 
-func GetDiscordFingerprint(ctx context.Context) string {
-	FingerprintMu.Lock()
-	defer FingerprintMu.Unlock()
-	if DiscordFingerprint != "" {
-		return DiscordFingerprint
-	}
+// WaitForDiscordSlotFor waits until the given route+proxy limiter has a free
+// slot, respecting any active cooldown and per-proxy pacing.
+// proxyKey should be the proxy URL string, or ProxyKeyDirect for direct.
+func WaitForDiscordSlotFor(ctx context.Context, route, proxyKey string, configuredMinDelayMs int) error {
+	// Safe minimum: 200ms per proxy (5 req/s max per IP)
+	const safeMin = 200 * time.Millisecond
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, DiscordExperimentsAPI, nil)
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Referer", "https://discord.com/register")
-	req.Header.Set("User-Agent", UserAgent)
+	l := limiterFor(route, proxyKey)
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-	var payload struct {
-		Fingerprint string `json:"fingerprint"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return ""
-	}
-	DiscordFingerprint = payload.Fingerprint
-	return DiscordFingerprint
-}
-
-func WaitForDiscordSlotFor(ctx context.Context, route string, configuredMinDelayMs int) error {
-	const baseDelay = 350 * time.Millisecond
-	l := limiterFor(route)
-
+	// 1. Wait out any hard cooldown (429 response)
 	for {
 		l.mu.Lock()
-		if l.until.IsZero() {
-			l.mu.Unlock()
-			break
-		}
 		wait := time.Until(l.until)
+		l.mu.Unlock()
 		if wait <= 0 {
-			l.until = time.Time{}
-			l.mu.Unlock()
 			break
 		}
-		l.mu.Unlock()
 		if err := waitContext(ctx, wait); err != nil {
 			return err
 		}
 	}
 
-	spacing := baseDelay
-	if configuredMinDelayMs > 0 && time.Duration(configuredMinDelayMs)*time.Millisecond > spacing {
-		spacing = time.Duration(configuredMinDelayMs) * time.Millisecond
-	}
-
+	// 2. Pace requests — respect both configured min and adaptive rateDelay,
+	//    with a small random jitter (±15%) to avoid synchronized bursts.
 	for {
 		l.mu.Lock()
+		spacing := safeMin
+		if configuredMinDelayMs > 0 {
+			if d := time.Duration(configuredMinDelayMs) * time.Millisecond; d > spacing {
+				spacing = d
+			}
+		}
 		if l.rateDelay > spacing {
 			spacing = l.rateDelay
 		}
+		// Add ±15% jitter
+		jitter := time.Duration(rand.Int63n(int64(spacing/7+1))) - spacing/14
+		spacing += jitter
+
 		wait := time.Duration(0)
 		if !l.lastCall.IsZero() {
 			wait = spacing - time.Since(l.lastCall)
@@ -387,9 +492,12 @@ func WaitForDiscordSlotFor(ctx context.Context, route string, configuredMinDelay
 	}
 }
 
+// WaitForDiscordSlot — backwards-compat (direct, username route)
 func WaitForDiscordSlot(ctx context.Context, configuredMinDelayMs int) error {
-	return WaitForDiscordSlotFor(ctx, RateRouteUsername, configuredMinDelayMs)
+	return WaitForDiscordSlotFor(ctx, RateRouteUsername, ProxyKeyDirect, configuredMinDelayMs)
 }
+
+// ─── Error helpers ─────────────────────────────────────────────────────────
 
 func CompactCheckError(err error) string {
 	if err == nil {
@@ -426,6 +534,8 @@ func ShouldBroadcastCheckError(counter *int64) (int64, bool) {
 	n := atomic.AddInt64(counter, 1)
 	return n, n <= 3 || n%25 == 0
 }
+
+// ─── Username generators ───────────────────────────────────────────────────
 
 func GenerateRandomUsername(length int) (string, error) {
 	return GenerateRandomUsernameFromCharset(length, "abcdefghijklmnopqrstuvwxyz0123456789")
@@ -493,6 +603,8 @@ func randomUsernameLength() int {
 		return length
 	}
 }
+
+// ─── Config I/O ────────────────────────────────────────────────────────────
 
 func LoadConfig() error {
 	f, err := os.Open(ConfigFile)

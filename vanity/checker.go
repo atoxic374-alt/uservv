@@ -97,13 +97,19 @@ func logVanityCheckError(code string, err error, workerID int) {
 	globals.BroadcastLog("warn", msg)
 }
 
-// CheckCode checks a single vanity code. Returns taken, guildName, latency, error.
-func CheckCode(ctx context.Context, code string) (bool, string, int, error) {
-	var p *types.Proxy
-	pm := proxy.Default
-	if pm.Count() > 0 {
-		p, _ = pm.GetNext()
+// proxyKey returns a stable string key for the given proxy.
+func proxyKey(p *types.Proxy) string {
+	if p == nil {
+		return globals.ProxyKeyDirect
 	}
+	return p.URL
+}
+
+// CheckCode checks a single vanity code using the provided proxy.
+// Returns taken, guildName, latency, error.
+func CheckCode(ctx context.Context, code string, p *types.Proxy) (bool, string, int, error) {
+	pk := proxyKey(p)
+	pm := proxy.Default
 
 	timeout := time.Duration(globals.VanityConfig.Timeout) * time.Second
 	if timeout <= 0 {
@@ -114,15 +120,16 @@ func CheckCode(ctx context.Context, code string) (bool, string, int, error) {
 		client = &http.Client{Timeout: timeout}
 	}
 
-	url := fmt.Sprintf(DiscordInviteAPI, code)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	reqURL := fmt.Sprintf(DiscordInviteAPI, code)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return false, "", 0, err
 	}
-	req.Header.Set("User-Agent", globals.UserAgent)
+	req.Header.Set("User-Agent", globals.RandomUserAgent())
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
-	if err := globals.WaitForDiscordSlotFor(ctx, globals.RateRouteVanity, globals.VanityConfig.MinDelayMs); err != nil {
+	if err := globals.WaitForDiscordSlotFor(ctx, globals.RateRouteVanity, pk, globals.VanityConfig.MinDelayMs); err != nil {
 		return false, "", 0, err
 	}
 
@@ -144,15 +151,16 @@ func CheckCode(ctx context.Context, code string) (bool, string, int, error) {
 
 	switch res.StatusCode {
 	case 404:
-		globals.ObserveDiscordRateLimitHeadersFor(globals.RateRouteVanity, res.Header)
-		globals.DecreaseDelayFor(globals.RateRouteVanity)
+		globals.ObserveDiscordRateLimitHeadersFor(globals.RateRouteVanity, pk, res.Header)
+		globals.DecreaseDelayFor(globals.RateRouteVanity, pk)
 		return false, "", latency, nil
 	case 200:
-		globals.ObserveDiscordRateLimitHeadersFor(globals.RateRouteVanity, res.Header)
-		globals.DecreaseDelayFor(globals.RateRouteVanity)
+		globals.ObserveDiscordRateLimitHeadersFor(globals.RateRouteVanity, pk, res.Header)
+		globals.DecreaseDelayFor(globals.RateRouteVanity, pk)
 		return true, extractGuildName(string(body)), latency, nil
 	case 429:
-		cooldown := globals.RegisterDiscordRateLimitFor(globals.RateRouteVanity, globals.RetryAfterValue(res.Header, body))
+		retryVal := globals.RetryAfterValue(res.Header, body)
+		cooldown := globals.RegisterDiscordRateLimitFor(globals.RateRouteVanity, pk, retryVal)
 		return false, "", latency, fmt.Errorf("rate limited (429), cooldown %s", globals.FormatDuration(cooldown))
 	default:
 		return false, "", latency, fmt.Errorf("status %d", res.StatusCode)
@@ -287,7 +295,7 @@ func loadCustomCodes() []string {
 	return codes
 }
 
-// RunChecker runs the vanity checker
+// RunChecker runs the vanity checker with sticky per-worker proxy assignment.
 func RunChecker(ctx context.Context, codes []string, sessionID int64, cfg types.VanityConfig) {
 	if !IsRunning() {
 		SetRunning(true)
@@ -300,7 +308,17 @@ func RunChecker(ctx context.Context, codes []string, sessionID int64, cfg types.
 	atomic.StoreInt64(&VTotal, int64(len(codes)))
 	atomic.StoreInt64(&vanityErrorLogCount, 0)
 
-	globals.BroadcastLog("info", fmt.Sprintf("[Vanity] Starting: %d codes | %d threads", len(codes), cfg.Threads))
+	pm := proxy.Default
+	threads := cfg.Threads
+	if threads < 1 {
+		threads = 1
+	}
+
+	globals.BroadcastLog("info", fmt.Sprintf("[Vanity] Starting: %d codes | %d threads | %d proxies",
+		len(codes), threads, pm.Count()))
+
+	// Sticky proxy assignment per worker
+	workerProxies := assignVanityWorkerProxies(pm, threads)
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -326,36 +344,43 @@ func RunChecker(ctx context.Context, codes []string, sessionID int64, cfg types.
 		}
 	}()
 
-	codeCh := make(chan string, cfg.Threads*2)
+	codeCh := make(chan string, threads*2)
 	var wg sync.WaitGroup
-	threads := cfg.Threads
-	if threads < 1 {
-		threads = 1
-	}
 
 	for i := 1; i <= threads; i++ {
 		wg.Add(1)
 		go func(wid int) {
 			defer wg.Done()
+			assignedProxy := workerProxies[wid-1] // may be nil
 			for code := range codeCh {
 				select {
 				case <-ctx.Done():
 					return
 				default:
 				}
+
 				var taken bool
 				var guild string
 				var latency int
 				var err error
-				for rateLimitRetries := 0; rateLimitRetries <= 5; rateLimitRetries++ {
-					taken, guild, latency, err = CheckCode(ctx, code)
+
+				currentProxy := assignedProxy
+				for rateLimitRetries := 0; rateLimitRetries <= 8; rateLimitRetries++ {
+					taken, guild, latency, err = CheckCode(ctx, code, currentProxy)
 					if !globals.IsRateLimitError(err) {
 						break
 					}
-					if waitErr := globals.WaitForDiscordSlotFor(ctx, globals.RateRouteVanity, cfg.MinDelayMs); waitErr != nil {
+					// On rate limit, try rotating to a different proxy
+					if pm.Count() > 1 {
+						if next, e := pm.GetNext(); e == nil && next.URL != proxyKey(currentProxy) {
+							currentProxy = next
+						}
+					}
+					if waitErr := globals.WaitForDiscordSlotFor(ctx, globals.RateRouteVanity, proxyKey(currentProxy), cfg.MinDelayMs); waitErr != nil {
 						return
 					}
 				}
+
 				if errors.Is(err, context.Canceled) {
 					return
 				}
@@ -430,4 +455,17 @@ func RunChecker(ctx context.Context, codes []string, sessionID int64, cfg types.
 		"status": status, "available": av, "taken": tk, "errors": er,
 	})
 	globals.BroadcastLog("info", fmt.Sprintf("[Vanity] %s  Available: %d | Taken: %d | Errors: %d", status, av, tk, er))
+}
+
+func assignVanityWorkerProxies(pm *proxy.Manager, threads int) []*types.Proxy {
+	result := make([]*types.Proxy, threads)
+	if pm.Count() == 0 {
+		return result
+	}
+	proxies := pm.All()
+	for i := range threads {
+		p := proxies[i%len(proxies)]
+		result[i] = &p
+	}
+	return result
 }
