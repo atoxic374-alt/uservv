@@ -477,6 +477,12 @@ func RegisterDiscordRateLimitFor(route, proxyKey, retryAfter string) time.Durati
                 }
                 BroadcastLog("warn", fmt.Sprintf("Discord %s rate limit [%s]: pausing %s", route, pk, FormatDuration(cooldown)))
         }
+        // Push instant cooldown notification so the Dashboard countdown starts immediately
+        // (non-blocking — uses select/default internally)
+        BroadcastEvent("cooldown_update", map[string]interface{}{
+                "route":       route,
+                "cooldown_ms": cooldown.Milliseconds(),
+        })
         return cooldown
 }
 
