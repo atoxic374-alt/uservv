@@ -1,4 +1,4 @@
-modules = ["go-1.21", "nodejs-20", "python-3.11"]
+modules = ["web", "go-1.21"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -23,18 +23,14 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "go run . 2>&1"
 waitForPort = 5000
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
