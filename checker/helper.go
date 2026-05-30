@@ -111,7 +111,16 @@ func doRequest(ctx context.Context, username string, p *types.Proxy) (bool, int,
                 return true, 0, err
         }
 
-        ua := globals.RandomUserAgent()
+        // Token mode: use a stable session UA so every request from the same token
+        // looks like it comes from one browser (rotating UAs is a detection signal).
+        // IP mode: rotate freely since there's no persistent identifier linking requests.
+        var ua string
+        if useToken {
+                ua = globals.GetSessionUA()
+        } else {
+                ua = globals.RandomUserAgent()
+        }
+
         req.Header.Set("Content-Type", "application/json")
         req.Header.Set("Accept", "application/json")
         req.Header.Set("Accept-Language", "en-US,en;q=0.9")
@@ -124,6 +133,18 @@ func doRequest(ctx context.Context, username string, p *types.Proxy) (bool, int,
         req.Header.Set("Sec-Fetch-Site", "same-origin")
         req.Header.Set("X-Discord-Locale", "en-US")
         req.Header.Set("X-Discord-Timezone", "America/New_York")
+
+        // X-Super-Properties: base64 JSON that identifies the browser/OS client.
+        // Discord's servers validate this against the User-Agent; mismatches flag the request.
+        if sp := globals.GetSuperProperties(ua); sp != "" {
+                req.Header.Set("X-Super-Properties", sp)
+        }
+        // Chrome client hints — only set for Chrome/Edge (Firefox doesn't send these)
+        if secUA, secPlatform := globals.GetSecCHHeaders(ua); secUA != "" {
+                req.Header.Set("Sec-CH-UA", secUA)
+                req.Header.Set("Sec-CH-UA-Mobile", "?0")
+                req.Header.Set("Sec-CH-UA-Platform", secPlatform)
+        }
 
         if useToken {
                 req.Header.Set("Authorization", token)

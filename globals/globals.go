@@ -2,6 +2,7 @@ package globals
 
 import (
         "context"
+        "encoding/base64"
         "encoding/json"
         "fmt"
         "math/rand"
@@ -57,9 +58,125 @@ var userAgentPool = []string{
 // UserAgent — default UA (kept for backwards compat; prefer RandomUserAgent())
 var UserAgent = userAgentPool[0]
 
-// RandomUserAgent picks a random UA from the pool
+// RandomUserAgent picks a random UA from the pool.
 func RandomUserAgent() string {
         return userAgentPool[rand.Intn(len(userAgentPool))]
+}
+
+// sessionUA is fixed once per process. Using a stable UA across all requests
+// from the same token avoids the fingerprint mismatch a real browser would never produce.
+var (
+        sessionUA     string
+        sessionUAOnce sync.Once
+)
+
+// GetSessionUA returns the same User-Agent for the lifetime of this process.
+// Use this for authenticated (token) requests so headers stay consistent.
+func GetSessionUA() string {
+        sessionUAOnce.Do(func() {
+                sessionUA = userAgentPool[rand.Intn(len(userAgentPool))]
+        })
+        return sessionUA
+}
+
+// GetSuperProperties returns the base64-encoded X-Super-Properties header value
+// matching the supplied User-Agent. Discord uses this to verify the request comes
+// from a real browser client; without it, authenticated endpoints can flag the account.
+func GetSuperProperties(ua string) string {
+        lower := strings.ToLower(ua)
+
+        osName, osVersion := "Windows", "10"
+        if strings.Contains(lower, "macintosh") {
+                osName, osVersion = "Mac OS X", "10.15.7"
+        } else if strings.Contains(lower, "linux") && !strings.Contains(lower, "android") {
+                osName, osVersion = "Linux", ""
+        }
+
+        browserName, browserVersion := "Chrome", "136.0.0.0"
+        switch {
+        case strings.Contains(lower, "firefox/"):
+                browserName = "Firefox"
+                if idx := strings.Index(ua, "Firefox/"); idx >= 0 {
+                        rest := ua[idx+8:]
+                        if sp := strings.IndexAny(rest, " \t\r\n"); sp > 0 {
+                                browserVersion = rest[:sp]
+                        } else {
+                                browserVersion = strings.TrimSpace(rest)
+                        }
+                }
+        case strings.Contains(lower, "edg/"):
+                browserName = "Edge"
+                if idx := strings.Index(ua, "Edg/"); idx >= 0 {
+                        rest := ua[idx+4:]
+                        if sp := strings.IndexAny(rest, " \t\r\n"); sp > 0 {
+                                browserVersion = rest[:sp]
+                        } else {
+                                browserVersion = strings.TrimSpace(rest)
+                        }
+                }
+        default:
+                if idx := strings.Index(ua, "Chrome/"); idx >= 0 {
+                        rest := ua[idx+7:]
+                        if sp := strings.IndexAny(rest, " \t\r\n"); sp > 0 {
+                                browserVersion = rest[:sp]
+                        } else {
+                                browserVersion = strings.TrimSpace(rest)
+                        }
+                }
+        }
+
+        props := map[string]interface{}{
+                "os":                       osName,
+                "browser":                  browserName,
+                "device":                   "",
+                "system_locale":            "en-US",
+                "has_client_mods":          false,
+                "browser_user_agent":       ua,
+                "browser_version":          browserVersion,
+                "os_version":               osVersion,
+                "referrer":                 "",
+                "referring_domain":         "",
+                "referrer_current":         "",
+                "referring_domain_current": "",
+                "release_channel":          "stable",
+                "client_build_number":      387123,
+                "client_event_source":      nil,
+                "design_id":                0,
+        }
+
+        data, err := json.Marshal(props)
+        if err != nil {
+                return ""
+        }
+        return base64.StdEncoding.EncodeToString(data)
+}
+
+// GetSecCHHeaders returns Sec-CH-UA and Sec-CH-UA-Platform values for Chrome/Edge.
+// Returns empty strings for Firefox, which does not send these hints.
+func GetSecCHHeaders(ua string) (secCHUA, secCHPlatform string) {
+        lower := strings.ToLower(ua)
+        if strings.Contains(lower, "firefox") {
+                return "", ""
+        }
+        major := "136"
+        if idx := strings.Index(ua, "Chrome/"); idx >= 0 {
+                rest := ua[idx+7:]
+                if dot := strings.Index(rest, "."); dot > 0 {
+                        major = rest[:dot]
+                }
+        }
+        platform := `"Windows"`
+        if strings.Contains(lower, "macintosh") {
+                platform = `"macOS"`
+        } else if strings.Contains(lower, "linux") {
+                platform = `"Linux"`
+        }
+        if strings.Contains(lower, "edg/") {
+                secCHUA = `"Chromium";v="` + major + `", "Not A(Brand";v="8", "Microsoft Edge";v="` + major + `"`
+        } else {
+                secCHUA = `"Chromium";v="` + major + `", "Not A(Brand";v="8", "Google Chrome";v="` + major + `"`
+        }
+        return secCHUA, platform
 }
 
 // ─── Fingerprint pool ───────────────────────────────────────────────────────

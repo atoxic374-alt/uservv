@@ -67,6 +67,14 @@ func HandleStatus(w http.ResponseWriter, r *http.Request) {
                 }(),
                 "session_id": globals.CurrentSessionID,
                 "db_stats":   database.GetDBStats(),
+                "token_active": globals.Config.DiscordToken != "",
+                "rate_limit_per_sec": func() int {
+                        if globals.Config.DiscordToken != "" {
+                                return 10
+                        }
+                        return 5
+                }(),
+                "auto_ip_count": proxy.Auto.Count(),
         })
 }
 
