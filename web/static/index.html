@@ -988,6 +988,26 @@ input[type=checkbox]{width:auto;cursor:pointer;accent-color:var(--gold);}
         <div class="card-title" style="margin-bottom:14px"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Notifications</div>
         <div class="fg" style="margin-bottom:0"><label>Discord Webhook URL</label><input type="url" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/..."></div>
       </div>
+      <div class="card gold-glow">
+        <div class="card-title" style="margin-bottom:6px"><svg class="ic" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Discord Token <span style="font-size:10px;color:var(--teal);margin-left:6px;font-weight:600">FASTER MODE</span></div>
+        <div class="info-box gold" style="margin-bottom:12px;font-size:11px">
+          بدون توكن: rate limit بـ IP مشترك على Replit (بطيء)<br>
+          مع توكن: rate limit معزول بالتوكن + 2x أسرع (100ms بدل 200ms)
+        </div>
+        <div class="fg" style="position:relative;margin-bottom:10px">
+          <label>User Token (من Discord)</label>
+          <input type="password" id="cfg-token" placeholder="توكن حسابك على Discord" autocomplete="off">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="testDiscordToken()">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> اختبار التوكن
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleTokenVisibility()" title="إظهار/إخفاء">
+            <svg class="ic ic-sm" id="tok-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div id="tok-status" style="margin-top:8px;font-size:11px;display:none"></div>
+      </div>
       <button class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:2px" onclick="saveConfig()">
         <svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Save Configuration
@@ -1188,7 +1208,7 @@ async function loadConfig(){
   const u=cfg.usernames||{};
   setVal('cfg-custom',u.custom,true);setVal('cfg-amount',u.amount);setVal('cfg-length',u.length);
   setVal('cfg-threads',cfg.threads);setVal('cfg-timeout',cfg.timeout);setVal('cfg-mindelay',cfg.min_delay_ms||0);
-  setVal('cfg-retry',cfg.retry?.enabled,true);setVal('cfg-webhook',cfg.webhook||'');
+  setVal('cfg-retry',cfg.retry?.enabled,true);setVal('cfg-webhook',cfg.webhook||'');setVal('cfg-token',cfg.discord_token||'');
   setVal('cfg-dryrun',cfg.dry_run,true);setVal('cfg-double',cfg.double_verify,true);
   setVal('cfg-adaptive',cfg.adaptive_rate,true);
   setVal('ck-dryrun',cfg.dry_run,true);setVal('ck-double',cfg.double_verify,true);setVal('ck-adaptive',cfg.adaptive_rate,true);
@@ -1228,7 +1248,8 @@ async function saveConfig(){
     usernames:userCfg,
     retry:{enabled:$('cfg-retry').checked,max_attempts:5},
     threads:parseInt($('cfg-threads').value)||10,timeout:parseInt($('cfg-timeout').value)||30,
-    webhook:$('cfg-webhook').value.trim(),dry_run:$('cfg-dryrun').checked,
+    webhook:$('cfg-webhook').value.trim(),discord_token:$('cfg-token').value.trim(),
+    dry_run:$('cfg-dryrun').checked,
     double_verify:$('cfg-double').checked,adaptive_rate:$('cfg-adaptive').checked,
     skip_duplicates:true,min_delay_ms:parseInt($('cfg-mindelay').value)||0
   };
@@ -1361,6 +1382,28 @@ async function loadVanitySessions(){
   if(!sessions?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">No vanity sessions yet</td></tr>';return;}
   const sm={running:'bg-b',completed:'bg-tl',stopped:'bg-y'};
   tbody.innerHTML=sessions.map(s=>`<tr><td style="color:var(--dim)">#${s.id}</td><td><span class="badge ${sm[s.status]||'bg-gr'}">${s.status}</span></td><td>${s.total}</td><td style="color:var(--teal);font-weight:700">${s.available}</td><td style="color:var(--red)">${s.taken}</td><td>${s.total>0?((s.available/s.total)*100).toFixed(1)+'%':'—'}</td><td style="font-size:11px;color:var(--dim)">${new Date(s.started_at).toLocaleString()}</td><td>${s.finished_at?fmtMs(new Date(s.finished_at)-new Date(s.started_at)):'—'}</td></tr>`).join('');
+}
+
+/* ══ Token helpers ══════════════════════════════════════════════ */
+function toggleTokenVisibility(){
+  const inp=$('cfg-token');if(!inp)return;
+  const isPass=inp.type==='password';
+  inp.type=isPass?'text':'password';
+}
+async function testDiscordToken(){
+  const tok=$('cfg-token').value.trim();
+  if(!tok){toast('أدخل التوكن أولاً','','yellow');return;}
+  const st=$('tok-status');
+  if(st){st.style.display='block';st.style.color='var(--dim)';st.textContent='جاري الاختبار...';}
+  const res=await api('/api/token/test','POST',{token:tok});
+  if(!res){if(st){st.style.color='var(--red)';st.textContent='❌ فشل الاتصال';}return;}
+  if(res.valid){
+    if(st){st.style.color='var(--green)';st.textContent='✓ توكن صحيح — '+res.username+(res.discriminator?'#'+res.discriminator:'');}
+    toast('توكن صحيح: '+res.username,'','green');
+  }else{
+    if(st){st.style.color='var(--red)';st.textContent='❌ توكن خاطئ: '+(res.error||'invalid');}
+    toast('توكن خاطئ','','red');
+  }
 }
 
 /* ══ Proxies ════════════════════════════════════════════════════ */
