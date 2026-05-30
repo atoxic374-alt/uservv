@@ -979,9 +979,16 @@ input[type=checkbox]{width:auto;cursor:pointer;accent-color:var(--gold);}
           <div class="tog-info"><div class="tog-lbl">Adaptive Rate Limiting</div><div class="tog-desc">Auto slow on 429 errors</div></div>
           <label class="tog"><input type="checkbox" id="cfg-adaptive"><span class="tog-sl"></span></label>
         </div>
-        <div class="tog-row" style="border:0;padding-bottom:0">
+        <div class="tog-row">
           <div class="tog-info"><div class="tog-lbl">Retry on Error</div><div class="tog-desc">Auto-retry failed requests</div></div>
           <label class="tog"><input type="checkbox" id="cfg-retry"><span class="tog-sl"></span></label>
+        </div>
+        <div class="tog-row" style="border:0;padding-bottom:0">
+          <div class="tog-info">
+            <div class="tog-lbl">Auto IP Rotation <span style="font-size:10px;color:var(--teal);margin-left:4px">AUTO</span></div>
+            <div class="tog-desc">على 429: يجلب بروكسيات مجانية ويغير الـ IP تلقائياً</div>
+          </div>
+          <label class="tog"><input type="checkbox" id="cfg-autoip"><span class="tog-sl"></span></label>
         </div>
       </div>
       <div class="card">
@@ -1208,7 +1215,7 @@ async function loadConfig(){
   const u=cfg.usernames||{};
   setVal('cfg-custom',u.custom,true);setVal('cfg-amount',u.amount);setVal('cfg-length',u.length);
   setVal('cfg-threads',cfg.threads);setVal('cfg-timeout',cfg.timeout);setVal('cfg-mindelay',cfg.min_delay_ms||0);
-  setVal('cfg-retry',cfg.retry?.enabled,true);setVal('cfg-webhook',cfg.webhook||'');setVal('cfg-token',cfg.discord_token||'');
+  setVal('cfg-retry',cfg.retry?.enabled,true);setVal('cfg-webhook',cfg.webhook||'');setVal('cfg-token',cfg.discord_token||'');setVal('cfg-autoip',cfg.auto_rotate_ip,true);
   setVal('cfg-dryrun',cfg.dry_run,true);setVal('cfg-double',cfg.double_verify,true);
   setVal('cfg-adaptive',cfg.adaptive_rate,true);
   setVal('ck-dryrun',cfg.dry_run,true);setVal('ck-double',cfg.double_verify,true);setVal('ck-adaptive',cfg.adaptive_rate,true);
@@ -1251,7 +1258,8 @@ async function saveConfig(){
     webhook:$('cfg-webhook').value.trim(),discord_token:$('cfg-token').value.trim(),
     dry_run:$('cfg-dryrun').checked,
     double_verify:$('cfg-double').checked,adaptive_rate:$('cfg-adaptive').checked,
-    skip_duplicates:true,min_delay_ms:parseInt($('cfg-mindelay').value)||0
+    skip_duplicates:true,min_delay_ms:parseInt($('cfg-mindelay').value)||0,
+    auto_rotate_ip:!!$('cfg-autoip')?.checked
   };
   const r=await api('/api/config','POST',cfg);
   if(r)toast('Configuration saved','','green');

@@ -26,6 +26,7 @@ type Config struct {
         SkipDuplicates bool   `json:"skip_duplicates"`
         MinDelayMs     int    `json:"min_delay_ms"`
         DiscordToken   string `json:"discord_token,omitempty"`
+        AutoRotateIP   bool   `json:"auto_rotate_ip"`
 }
 
 type VanityConfig struct {

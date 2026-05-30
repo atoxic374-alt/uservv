@@ -205,27 +205,46 @@ func CheckUsernameSimple(ctx context.Context, username string, p *types.Proxy) (
 
                         if globals.IsRateLimitError(err) && rateLimitRetries < 8 {
                                 rateLimitRetries++
-                                // On rate limit, try rotating to a different proxy if available
+                                // Priority 1: rotate within the user-managed proxy pool
                                 if pm.Count() > 1 {
                                         if next, e := pm.GetNext(); e == nil && next.URL != proxyKey(currentProxy) {
                                                 currentProxy = next
                                         }
+                                } else if pm.Count() == 0 && globals.Config.DiscordToken == "" {
+                                        // Priority 2: no user proxies, no token — try auto IP rotation
+                                        if globals.Config.AutoRotateIP {
+                                                proxy.Auto.TriggerFetch() // async, returns immediately
+                                                if next, ok := proxy.Auto.GetNext(); ok {
+                                                        currentProxy = next
+                                                }
+                                        }
                                 }
-                                // Wait for the new proxy's slot
+                                // Wait for the new bucket's slot
                                 if waitErr := globals.WaitForDiscordSlotFor(ctx, globals.RateRouteUsername, proxyKey(currentProxy), globals.Config.MinDelayMs); waitErr != nil {
                                         return true, latency, waitErr
                                 }
-                                attempt-- // don't count rate-limit retries against maxAttempts
+                                attempt-- // rate-limit retries don't count against maxAttempts
                                 continue
                         }
 
-                        // Non-rate-limit error: rotate proxy and backoff
+                        // Non-rate-limit error: mark failed, try next proxy
                         if currentProxy != nil {
-                                pm.MarkFailed(currentProxy.ID)
-                                if next, e := pm.GetNext(); e == nil {
-                                        currentProxy = next
+                                if proxy.IsAutoProxy(currentProxy.ID) {
+                                        proxy.Auto.MarkFailed(currentProxy.ID)
+                                        if next, ok := proxy.Auto.GetNext(); ok {
+                                                currentProxy = next
+                                        } else {
+                                                currentProxy = nil
+                                        }
                                 } else {
-                                        currentProxy = nil
+                                        pm.MarkFailed(currentProxy.ID)
+                                        if next, e := pm.GetNext(); e == nil {
+                                                currentProxy = next
+                                        } else if next, ok := proxy.Auto.GetNext(); ok {
+                                                currentProxy = next
+                                        } else {
+                                                currentProxy = nil
+                                        }
                                 }
                         }
                         if attempt < maxAttempts {
@@ -239,8 +258,13 @@ func CheckUsernameSimple(ctx context.Context, username string, p *types.Proxy) (
                         return true, latency, err
                 }
 
+                // Success: update stats for the proxy that did the work
                 if currentProxy != nil {
-                        pm.MarkSuccess(currentProxy.ID, latency)
+                        if proxy.IsAutoProxy(currentProxy.ID) {
+                                // auto-pool proxies have no DB record; no-op
+                        } else {
+                                pm.MarkSuccess(currentProxy.ID, latency)
+                        }
                 }
                 return taken, latency, nil
         }
